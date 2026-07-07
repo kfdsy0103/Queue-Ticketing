@@ -38,8 +38,6 @@ public class ScheduleSeat extends BaseEntity {
     @JoinColumn(name = "seat_id")
     private Seat seat;
 
-    private int price;
-
     @Enumerated(EnumType.STRING)
     private SeatStatus seatStatus;
 
