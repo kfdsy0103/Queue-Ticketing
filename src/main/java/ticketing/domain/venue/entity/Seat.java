@@ -1,4 +1,4 @@
-package ticketing.domain.schedule.entity;
+package ticketing.domain.venue.entity;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -9,21 +9,31 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import ticketing.domain.concertVenue.entity.ConcertVenue;
+import ticketing.global.entity.BaseEntity;
 
 @Entity
-@Table(name = "concert_schedules")
+@Table(name = "seats")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class ConcertSchedule {
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@Builder
+public class Seat extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "concert_venue_id")
-    private ConcertVenue concertVenue;
+    @JoinColumn(name = "venue_id")
+    private Venue venue;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "seat_grade_id")
+    private SeatGrade seatGrade;
+
+    private String seatNumber;
 }

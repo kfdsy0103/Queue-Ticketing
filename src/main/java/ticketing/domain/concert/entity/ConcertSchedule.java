@@ -1,4 +1,7 @@
-package ticketing.domain.concertVenue.entity;
+package ticketing.domain.concert.entity;
+
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -9,20 +12,29 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import ticketing.global.entity.BaseEntity;
 
 @Entity
-@Table(name = "seats")
+@Table(name = "concert_schedules")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
-public class ConcertVenueSeat {
+@AllArgsConstructor(access = AccessLevel.PRIVATE)
+@Builder
+public class ConcertSchedule extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "concert_venue_id")
-    private ConcertVenue concertVenue;
+    @JoinColumn(name = "concert_id")
+    private Concert concert;
+
+    private LocalDate performanceDate;
+
+    private LocalDateTime ticketOpenAt;
 }

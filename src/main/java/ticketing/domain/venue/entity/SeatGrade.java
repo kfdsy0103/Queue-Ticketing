@@ -1,4 +1,4 @@
-package ticketing.domain.user.entity;
+package ticketing.domain.venue.entity;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -13,18 +13,16 @@ import lombok.NoArgsConstructor;
 import ticketing.global.entity.BaseEntity;
 
 @Entity
-@Table(name = "users")
+@Table(name = "seat_grades")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @Builder
-public class User extends BaseEntity {
+public class SeatGrade extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-
-    private String email;
 
     private String name;
 }
