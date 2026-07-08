@@ -11,6 +11,7 @@ import ticketing.domain.user.entity.User;
 import ticketing.domain.user.exception.UserErrorCode;
 import ticketing.domain.user.repository.UserRepository;
 import ticketing.global.apiPayload.exception.GeneralException;
+import ticketing.global.util.JitterUtil;
 import ticketing.global.util.RedisUtil;
 
 @Slf4j
@@ -42,16 +43,23 @@ public class QueueService {
 			Long score = redisUtil.increment(counterKey);
 			boolean isEnqueued = redisUtil.zAddNX(queueKey, user.getId(), score);
 
+			Long rank = redisUtil.zRank(queueKey, user.getId());
+			Long pollingIntervalMs = JitterUtil.nextPollIntervalMillis(rank);
+
 			if (isEnqueued) {
 				return EnterDTO.Result.builder()
 					.token(user.getId().toString())
 					.needToChoose(false)
+					.rank(rank)
+					.pollingInternalMs(pollingIntervalMs)
 					.build();
 			}
 			else {
 				return EnterDTO.Result.builder()
 					.token(user.getId().toString())
 					.needToChoose(true)	// 선택 필요
+					.rank(rank)
+					.pollingInternalMs(pollingIntervalMs)
 					.build();
 			}
 		}
@@ -67,6 +75,8 @@ public class QueueService {
 			return EnterDTO.Result.builder()
 				.token(user.getId().toString())
 				.needToChoose(false)
+				.rank(rank)
+				.pollingInternalMs(JitterUtil.nextPollIntervalMillis(rank))
 				.build();
 		}
 
@@ -74,10 +84,14 @@ public class QueueService {
 		if (command.getEnterType().equals(EnterType.REJOIN)) {
 			Long score = redisUtil.increment(counterKey);
 			redisUtil.zAdd(queueKey, user.getId(), score);	// Add로 해야 덮어쓰기
+			Long rank = redisUtil.zRank(queueKey, user.getId());
+			Long pollingIntervalMs = JitterUtil.nextPollIntervalMillis(rank);
 
 			return EnterDTO.Result.builder()
 				.token(user.getId().toString())
 				.needToChoose(false)
+				.rank(rank)
+				.pollingInternalMs(pollingIntervalMs)
 				.build();
 		}
 
