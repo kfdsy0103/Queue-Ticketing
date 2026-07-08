@@ -37,14 +37,14 @@ public class EnterDTO {
 		String token;
 		boolean needToChoose;
 		long rank;
-		long pollingInternalMs;
+		long pollingIntervalMs;
 
 		public Response toResponse() {
 			return Response.builder()
 				.token(token)
 				.needToChoose(needToChoose)
 				.rank(rank)
-				.pollingInternalMs(pollingInternalMs)
+				.pollingIntervalMs(pollingIntervalMs)
 				.build();
 		}
 	}
@@ -55,6 +55,6 @@ public class EnterDTO {
 		String token;
 		boolean needToChoose;
 		long rank;
-		long pollingInternalMs;
+		long pollingIntervalMs;
 	}
 }

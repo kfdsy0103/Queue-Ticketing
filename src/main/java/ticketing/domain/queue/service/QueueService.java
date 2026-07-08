@@ -51,7 +51,7 @@ public class QueueService {
 					.token(user.getId().toString())
 					.needToChoose(false)
 					.rank(rank)
-					.pollingInternalMs(pollingIntervalMs)
+					.pollingIntervalMs(pollingIntervalMs)
 					.build();
 			}
 			else {
@@ -59,7 +59,7 @@ public class QueueService {
 					.token(user.getId().toString())
 					.needToChoose(true)	// 선택 필요
 					.rank(rank)
-					.pollingInternalMs(pollingIntervalMs)
+					.pollingIntervalMs(pollingIntervalMs)
 					.build();
 			}
 		}
@@ -76,7 +76,7 @@ public class QueueService {
 				.token(user.getId().toString())
 				.needToChoose(false)
 				.rank(rank)
-				.pollingInternalMs(JitterUtil.nextPollIntervalMillis(rank))
+				.pollingIntervalMs(JitterUtil.nextPollIntervalMillis(rank))
 				.build();
 		}
 
@@ -91,7 +91,7 @@ public class QueueService {
 				.token(user.getId().toString())
 				.needToChoose(false)
 				.rank(rank)
-				.pollingInternalMs(pollingIntervalMs)
+				.pollingIntervalMs(pollingIntervalMs)
 				.build();
 		}
 
