@@ -43,8 +43,8 @@ public class QueueService {
 			Long score = redisUtil.increment(counterKey);
 			boolean isEnqueued = redisUtil.zAddNX(queueKey, user.getId(), score);
 
-			Long rank = redisUtil.zRank(queueKey, user.getId());
-			Long pollingIntervalMs = JitterUtil.nextPollIntervalMillis(rank);
+			long rank = safeRank(redisUtil.zRank(queueKey, user.getId()));
+			long pollingIntervalMs = JitterUtil.nextPollIntervalMillis(rank);
 
 			if (isEnqueued) {
 				return EnterDTO.Result.builder()
@@ -84,8 +84,8 @@ public class QueueService {
 		if (command.getEnterType().equals(EnterType.REJOIN)) {
 			Long score = redisUtil.increment(counterKey);
 			redisUtil.zAdd(queueKey, user.getId(), score);	// Add로 해야 덮어쓰기
-			Long rank = redisUtil.zRank(queueKey, user.getId());
-			Long pollingIntervalMs = JitterUtil.nextPollIntervalMillis(rank);
+			long rank = safeRank(redisUtil.zRank(queueKey, user.getId()));
+			long pollingIntervalMs = JitterUtil.nextPollIntervalMillis(rank);
 
 			return EnterDTO.Result.builder()
 				.token(user.getId().toString())
@@ -96,5 +96,13 @@ public class QueueService {
 		}
 
 		throw new GeneralException(QueueErrorCode.INVALID_ENTER_TYPE);
+	}
+
+	/**
+	 * Long → long 변환 시 null로 인한 NPE를 방지합니다.
+	 * zADD 직후 곧바로 워커가 처리한 경우를 방지합니다.
+	 */
+	private long safeRank(Long rank) {
+		return rank != null ? rank : 0L;
 	}
 }

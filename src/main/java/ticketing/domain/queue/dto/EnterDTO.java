@@ -36,8 +36,8 @@ public class EnterDTO {
 	public static class Result {
 		String token;
 		boolean needToChoose;
-		Long rank;
-		Long pollingInternalMs;
+		long rank;
+		long pollingInternalMs;
 
 		public Response toResponse() {
 			return Response.builder()
@@ -54,7 +54,7 @@ public class EnterDTO {
 	public static class Response {
 		String token;
 		boolean needToChoose;
-		Long rank;
-		Long pollingInternalMs;
+		long rank;
+		long pollingInternalMs;
 	}
 }
