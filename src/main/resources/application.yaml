@@ -16,3 +16,6 @@ spring:
     redis:
       host: localhost
       port: 6379
+  jwt:
+    secret: large-ticketing-jwt-secret-key-local-dev-only-please-change
+    expiration: 1800000
