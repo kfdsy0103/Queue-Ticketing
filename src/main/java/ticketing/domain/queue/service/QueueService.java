@@ -7,11 +7,13 @@ import org.springframework.stereotype.Service;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ticketing.domain.queue.dto.EnterDTO;
+import ticketing.domain.queue.dto.StatusDTO;
 import ticketing.domain.queue.enums.EnterType;
 import ticketing.domain.queue.exception.QueueErrorCode;
 import ticketing.domain.user.entity.User;
 import ticketing.domain.user.exception.UserErrorCode;
 import ticketing.domain.user.repository.UserRepository;
+import ticketing.global.apiPayload.code.GeneralErrorCode;
 import ticketing.global.apiPayload.exception.GeneralException;
 import ticketing.global.util.JitterUtil;
 import ticketing.global.util.JwtTokenUtil;
@@ -127,6 +129,59 @@ public class QueueService {
 		}
 
 		throw new GeneralException(QueueErrorCode.INVALID_ENTER_TYPE);
+	}
+
+	/**
+	 * 대기열에서 사용자의 순번 상태를 조회합니다.
+	 * 토큰에 담긴 화면(기기) 정보가 현재 등록된 화면과 다르면 다른 화면에서 이미 처리 중인 것으로 간주합니다.
+	 * 1 계정 - 1 화면 - 1 대기열
+	 */
+	public StatusDTO.Result status(StatusDTO.Command command) {
+
+		Long concertScheduleId = jwtTokenUtil.getClaim(command.getToken(), "concertScheduleId", Long.class);
+		Long userId = jwtTokenUtil.getClaim(command.getToken(), "userId", Long.class);
+		String sessionId = jwtTokenUtil.getClaim(command.getToken(), "sessionId", String.class);
+
+		// 토큰에 담긴 유저와 요청한 유저가 불일치하는 경우
+		if (!command.getUserId().equals(userId)) {
+			throw new GeneralException(GeneralErrorCode.FORBIDDEN);
+		}
+
+		User user = userRepository.findById(userId)
+			.orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
+
+		String queueKey = "queue:concertSchedule:" + concertScheduleId;
+		String sessionKey = queueKey + ":session";
+
+		// 하나의 화면에서만 대기열 폴링이 가능하다.
+		String registeredSessionId = redisUtil.hGet(sessionKey, user.getId().toString());
+		if (!sessionId.equals(registeredSessionId)) {
+			throw new GeneralException(QueueErrorCode.DIFFERENT_SESSION);	// 다른 화면(기기)에서 처리 중입니다.
+		}
+
+		// TODO: 작업열에 등록되었는지 확인 및 워커 작성
+		boolean isActive = false;
+		String redirectEndpoint = null;
+
+		if (isActive) {
+			return StatusDTO.Result.builder()
+				.isActive(true)
+				.redirectEndpoint(redirectEndpoint)
+				.build();
+		}
+
+		Long rank = redisUtil.zRank(queueKey, user.getId());
+		if (rank == null) {
+			throw new GeneralException(QueueErrorCode.NOT_IN_QUEUE);
+		}
+
+		long pollingIntervalMs = JitterUtil.nextPollIntervalMillis(rank);
+
+		return StatusDTO.Result.builder()
+			.rank(rank)
+			.pollingIntervalMs(pollingIntervalMs)
+			.isActive(false)
+			.build();
 	}
 
 	/**
