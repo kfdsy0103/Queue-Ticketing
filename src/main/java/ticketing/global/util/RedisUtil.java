@@ -83,4 +83,26 @@ public class RedisUtil {
 	public Long zRank(String key, Object value) {
 		return opsForZSet().rank(key, value);
 	}
+
+	/**
+	 * Sorted Set 자료형 Value의 score 조회.
+	 */
+	public Double zScore(String key, Object value) {
+		return opsForZSet().score(key, value);
+	}
+
+	/**
+	 * Hash 필드 값 조회.
+	 */
+	public String hGet(String key, String hashKey) {
+		Object value = redisTemplate.opsForHash().get(key, hashKey);
+		return value != null ? value.toString() : null;
+	}
+
+	/**
+	 * Hash 필드 값 저장.
+	 */
+	public void hSet(String key, String hashKey, String value) {
+		redisTemplate.opsForHash().put(key, hashKey, value);
+	}
 }
