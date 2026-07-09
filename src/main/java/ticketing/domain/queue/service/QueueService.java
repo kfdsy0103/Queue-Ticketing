@@ -35,64 +35,86 @@ public class QueueService {
 	 */
 	public EnterDTO.Result enter(EnterDTO.Command command) {
 
+		// 유저 검증
 		User user = userRepository.findById(command.getUserId())
 			.orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
 
-		// 대기열 토큰 생성
-		String token = jwtTokenUtil.generateToken(
-			Map.of("userId", user.getId(), "concertScheduleId", command.getConcertScheduleId())
-		);
-
 		String queueKey = "queue:concertSchedule:" + command.getConcertScheduleId();
 		String counterKey = queueKey + ":counter";
+		String sessionKey = queueKey + ":session";
 
-		// 1. NORMAL
+		// 동일 화면(기기)인지 구분하기 위함
+		String sessionId = command.getIdempotentKey();
+
+		// 대기열 토큰 생성
+		String token = jwtTokenUtil.generateToken(Map.of(
+			"userId", user.getId(),
+			"concertScheduleId", command.getConcertScheduleId(),
+			"sessionId", sessionId
+		));
+
+		// 1. NORMAL - 일반적인 예매하기 버튼 입장
 		if (command.getEnterType().equals(EnterType.NORMAL)) {
 
-			Long score = redisUtil.increment(counterKey);
-			boolean isEnqueued = redisUtil.zAddNX(queueKey, user.getId(), score);
+			// 1-1. 이미 대기열에 사용자가 존재하는 경우, 동일한 화면(기기)인지 판단하여 선택지 모달 보여주기 결정
+			Double existingScore = redisUtil.zScore(queueKey, user.getId());
+			if (existingScore != null) {
+				String previousSessionId = redisUtil.hGet(sessionKey, user.getId().toString()); // 대기열을 소유한 화면(기기) 조회
+				boolean isSameSession = sessionId.equals(previousSessionId);
+
+				long rank = safeRank(redisUtil.zRank(queueKey, user.getId()));
+				long pollingIntervalMs = JitterUtil.nextPollIntervalMillis(rank);
+
+				return EnterDTO.Result.builder()
+					.token(token)
+					.needToChoose(!isSameSession)	// 다른 화면(기기)이면 선택지 모달을 보여주기 위한 boolean
+					.rank(rank)
+					.pollingIntervalMs(pollingIntervalMs)
+					.build();
+			}
+
+			// 1-2. 대기열에 사용자가 없으면 새로 순번 발급 및 등록
+			long score = redisUtil.increment(counterKey);
+			redisUtil.zAdd(queueKey, user.getId(), score);
+			redisUtil.hSet(sessionKey, user.getId().toString(), sessionId); // 대기열을 가져간 화면(기기) 기록
 
 			long rank = safeRank(redisUtil.zRank(queueKey, user.getId()));
 			long pollingIntervalMs = JitterUtil.nextPollIntervalMillis(rank);
-
-			if (isEnqueued) {
-				return EnterDTO.Result.builder()
-					.token(token)
-					.needToChoose(false)
-					.rank(rank)
-					.pollingIntervalMs(pollingIntervalMs)
-					.build();
-			}
-			else {
-				return EnterDTO.Result.builder()
-					.token(token)
-					.needToChoose(true)	// 선택 필요
-					.rank(rank)
-					.pollingIntervalMs(pollingIntervalMs)
-					.build();
-			}
-		}
-
-		// 2. RESUME - 기존 순번에 합류
-		if (command.getEnterType().equals(EnterType.RESUME)) {
-			Long rank = redisUtil.zRank(queueKey, user.getId());
-
-			if (rank == null) {
-				throw new GeneralException(QueueErrorCode.NOT_IN_QUEUE);	// 이미 처리되거나 없는 경우
-			}
 
 			return EnterDTO.Result.builder()
 				.token(token)
 				.needToChoose(false)
 				.rank(rank)
-				.pollingIntervalMs(JitterUtil.nextPollIntervalMillis(rank))
+				.pollingIntervalMs(pollingIntervalMs)
+				.build();
+		}
+
+		// 2. RESUME - 기존 순번에 합류
+		if (EnterType.RESUME.equals(command.getEnterType())) {
+			Long rank = redisUtil.zRank(queueKey, user.getId());
+
+			if (rank == null) {
+				throw new GeneralException(QueueErrorCode.NOT_IN_QUEUE); // 이미 처리되었거나 없는 경우
+			}
+
+			redisUtil.hSet(sessionKey, user.getId().toString(), sessionId); // 대기열을 새로운 화면(기기)에서 가져갔음을 덮어쓰기
+
+			long pollingIntervalMs = JitterUtil.nextPollIntervalMillis(rank);
+
+			return EnterDTO.Result.builder()
+				.token(token)
+				.needToChoose(false)
+				.rank(rank)
+				.pollingIntervalMs(pollingIntervalMs)
 				.build();
 		}
 
 		// 3. REJOIN - 새롭게 순번 발급
-		if (command.getEnterType().equals(EnterType.REJOIN)) {
-			Long score = redisUtil.increment(counterKey);
-			redisUtil.zAdd(queueKey, user.getId(), score);	// Add로 해야 덮어쓰기
+		if (EnterType.REJOIN.equals(command.getEnterType())) {
+			long score = redisUtil.increment(counterKey);
+			redisUtil.zAdd(queueKey, user.getId(), score); // 순번 덮어쓰기
+			redisUtil.hSet(sessionKey, user.getId().toString(), sessionId); // 대기열을 새로운 화면(기기)에서 가져갔음을 덮어쓰기
+
 			long rank = safeRank(redisUtil.zRank(queueKey, user.getId()));
 			long pollingIntervalMs = JitterUtil.nextPollIntervalMillis(rank);
 

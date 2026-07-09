@@ -5,10 +5,11 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ticketing.domain.queue.dto.EnterDTO;
-import ticketing.domain.queue.service.QueueService;
+import ticketing.domain.queue.service.QueueFacadeService;
 import ticketing.global.apiPayload.CommonResponse;
 import ticketing.global.apiPayload.code.GeneralSuccessCode;
 
@@ -18,12 +19,12 @@ import ticketing.global.apiPayload.code.GeneralSuccessCode;
 @RequiredArgsConstructor
 public class QueueController {
 
-	private final QueueService queueService;
+	private final QueueFacadeService queueFacadeService;
 
 	@PostMapping("/enter")
-	public CommonResponse<?> enter(@RequestBody EnterDTO.Request request) {
+	public CommonResponse<?> enter(@Valid @RequestBody EnterDTO.Request request) {
 		log.info("[QueueController] enter() 호출 - userId: {}", request.getUserId());
-		EnterDTO.Result result = queueService.enter(request.toCommand());
+		EnterDTO.Result result = queueFacadeService.enter(request.toCommand());
 		return CommonResponse.onSuccess(GeneralSuccessCode.CREATED, result.toResponse());
 	}
 }
