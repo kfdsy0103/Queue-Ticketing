@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import ticketing.domain.queue.constants.QueueRedisKeys;
 import ticketing.domain.queue.dto.EnterDTO;
 import ticketing.domain.queue.dto.StatusDTO;
 import ticketing.domain.queue.enums.EnterType;
@@ -24,6 +25,9 @@ import ticketing.global.util.RedisUtil;
 @RequiredArgsConstructor
 public class QueueService {
 
+	// TODO: 실제 경로로 변경
+	private static final String REDIRECT_ENDPOINT = "/api/v1/booking";
+
 	private final UserRepository userRepository;
 	private final RedisUtil redisUtil;
 	private final JwtTokenUtil jwtTokenUtil;
@@ -41,9 +45,9 @@ public class QueueService {
 		User user = userRepository.findById(command.getUserId())
 			.orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
 
-		String queueKey = "queue:concertSchedule:" + command.getConcertScheduleId();
-		String counterKey = queueKey + ":counter";
-		String sessionKey = queueKey + ":session";
+		String queueKey = QueueRedisKeys.waitingKey(command.getConcertScheduleId());
+		String counterKey = QueueRedisKeys.counterKey(command.getConcertScheduleId());
+		String sessionKey = QueueRedisKeys.sessionKey(command.getConcertScheduleId());
 
 		// 동일 화면(기기)인지 구분하기 위함
 		String sessionId = command.getIdempotentKey();
@@ -150,26 +154,27 @@ public class QueueService {
 		User user = userRepository.findById(userId)
 			.orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
 
-		String queueKey = "queue:concertSchedule:" + concertScheduleId;
-		String sessionKey = queueKey + ":session";
+		String queueKey = QueueRedisKeys.waitingKey(concertScheduleId);
+		String sessionKey = QueueRedisKeys.sessionKey(concertScheduleId);
+		String activeKey = QueueRedisKeys.activeKey(concertScheduleId);
 
-		// 하나의 화면에서만 대기열 폴링이 가능하다.
+		// 하나의 화면에서만 대기열 폴링이 가능하도록 방어
 		String registeredSessionId = redisUtil.hGet(sessionKey, user.getId().toString());
 		if (!sessionId.equals(registeredSessionId)) {
 			throw new GeneralException(QueueErrorCode.DIFFERENT_SESSION);	// 다른 화면(기기)에서 처리 중입니다.
 		}
 
-		// TODO: 작업열에 등록되었는지 확인 및 워커 작성
-		boolean isActive = false;
-		String redirectEndpoint = null;
+		// 워커에 의해 '대기열 -> 작업열'로 승격된 사용자인지 확인
+		boolean isActive = redisUtil.hGet(activeKey, user.getId().toString()) != null;
 
 		if (isActive) {
 			return StatusDTO.Result.builder()
 				.isActive(true)
-				.redirectEndpoint(redirectEndpoint)
+				.redirectEndpoint(REDIRECT_ENDPOINT)
 				.build();
 		}
 
+		// 아직 승격되지 않았다면 isActive(false) + polling 하도록
 		Long rank = redisUtil.zRank(queueKey, user.getId());
 		if (rank == null) {
 			throw new GeneralException(QueueErrorCode.NOT_IN_QUEUE);
