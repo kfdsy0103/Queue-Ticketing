@@ -1,5 +1,7 @@
 package ticketing.global.util;
 
+import java.time.Duration;
+import java.util.List;
 import java.util.Set;
 
 import org.springframework.data.redis.core.RedisTemplate;
@@ -22,13 +24,6 @@ public class RedisUtil {
 	}
 
 	/**
-	 * Sorted Set 추가 (값이 없을 때만, ZADD NX).
-	 */
-	public Boolean zAddNX(String key, Object value, double score) {
-		return opsForZSet().addIfAbsent(key, value, score);
-	}
-
-	/**
 	 * 카운터 변수 원자적 증가 (INCR).
 	 */
 	public Long increment(String key) {
@@ -36,17 +31,10 @@ public class RedisUtil {
 	}
 
 	/**
-	 * Sorted Set 삭제.
+	 * Key 삭제
 	 */
 	public Boolean delete(String key) {
 		return redisTemplate.delete(key);
-	}
-
-	/**
-	 * Sorted Set 멤버 제거.
-	 */
-	public Long zRemove(String key, Object value) {
-		return opsForZSet().remove(key, value);
 	}
 
 	/**
@@ -54,6 +42,13 @@ public class RedisUtil {
 	 */
 	public Object getValue(String key) {
 		return redisTemplate.opsForValue().get(key);
+	}
+
+	/**
+	 * Sorted Set 멤버 제거.
+	 */
+	public Long zRemove(String key, Object value) {
+		return opsForZSet().remove(key, value);
 	}
 
 	/**
@@ -104,5 +99,26 @@ public class RedisUtil {
 	 */
 	public void hSet(String key, String hashKey, String value) {
 		redisTemplate.opsForHash().put(key, hashKey, value);
+	}
+
+	/**
+	 * Hash 필드 개수 조회.
+	 */
+	public Long hSize(String key) {
+		return redisTemplate.opsForHash().size(key);
+	}
+
+	/**
+	 * Hash 필드에 TTL을 설정합니다. (HEXPIRE, Redis 7.4+ 필요)
+	 */
+	public void hExpire(String key, String hashKey, Duration ttl) {
+		redisTemplate.opsForHash().expire(key, ttl, List.of(hashKey));
+	}
+
+	/**
+	 * Sorted Set에서 score가 가장 낮은 멤버부터 최대 count개를 원자적으로 꺼냅니다. (ZPOPMIN)
+	 */
+	public Set<ZSetOperations.TypedTuple<Object>> zPopMin(String key, long count) {
+		return opsForZSet().popMin(key, count);
 	}
 }

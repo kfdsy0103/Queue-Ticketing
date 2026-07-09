@@ -5,11 +5,6 @@ public final class QueueRedisKeys {
 	private QueueRedisKeys() {}
 
 	/**
-	 * 대기 중인 사용자가 있는 콘서트 회차 목록 (Set).
-	 */
-	public static final String ACTIVE_SCHEDULES_KEY = "queue:activeSchedules";
-
-	/**
 	 * 대기열 Sorted Set. (member: userId, score: 순번)
 	 */
 	public static String waitingKey(Long concertScheduleId) {
@@ -31,7 +26,7 @@ public final class QueueRedisKeys {
 	}
 
 	/**
-	 * 입장이 승격된 사용자 목록 Sorted Set. (member: userId, score: 만료 시각(epoch millis))
+	 * 입장이 승격된 사용자 목록 Hash. (field: userId, TTL: 필드 단위 HEXPIRE Redis 7.4+)
 	 */
 	public static String activeKey(Long concertScheduleId) {
 		return "active:concertSchedule:" + concertScheduleId;
