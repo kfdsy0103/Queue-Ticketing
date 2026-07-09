@@ -1,5 +1,7 @@
 package ticketing.domain.queue.dto;
 
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -10,15 +12,21 @@ public class EnterDTO {
 	@Getter
 	@NoArgsConstructor
 	public static class Request {
+		@NotNull
 		Long userId;
+		@NotNull
 		Long concertScheduleId;
+		@NotNull
 		EnterType enterType;
+		@NotBlank
+		String idempotentKey;
 
 		public Command toCommand() {
 			return Command.builder()
 				.userId(userId)
 				.concertScheduleId(concertScheduleId)
 				.enterType(enterType)
+				.idempotentKey(idempotentKey)
 				.build();
 		}
 	}
@@ -29,6 +37,7 @@ public class EnterDTO {
 		Long userId;
 		Long concertScheduleId;
 		EnterType enterType;
+		String idempotentKey;
 	}
 
 	@Getter
