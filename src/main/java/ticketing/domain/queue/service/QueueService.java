@@ -1,5 +1,7 @@
 package ticketing.domain.queue.service;
 
+import java.util.Map;
+
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
@@ -12,6 +14,7 @@ import ticketing.domain.user.exception.UserErrorCode;
 import ticketing.domain.user.repository.UserRepository;
 import ticketing.global.apiPayload.exception.GeneralException;
 import ticketing.global.util.JitterUtil;
+import ticketing.global.util.JwtTokenUtil;
 import ticketing.global.util.RedisUtil;
 
 @Slf4j
@@ -21,6 +24,7 @@ public class QueueService {
 
 	private final UserRepository userRepository;
 	private final RedisUtil redisUtil;
+	private final JwtTokenUtil jwtTokenUtil;
 
 	/**
 	 * 대기열 입장을 처리합니다.
@@ -33,6 +37,11 @@ public class QueueService {
 
 		User user = userRepository.findById(command.getUserId())
 			.orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
+
+		// 대기열 토큰 생성
+		String token = jwtTokenUtil.generateToken(
+			Map.of("userId", user.getId(), "concertScheduleId", command.getConcertScheduleId())
+		);
 
 		String queueKey = "queue:concertSchedule:" + command.getConcertScheduleId();
 		String counterKey = queueKey + ":counter";
@@ -48,7 +57,7 @@ public class QueueService {
 
 			if (isEnqueued) {
 				return EnterDTO.Result.builder()
-					.token(user.getId().toString())
+					.token(token)
 					.needToChoose(false)
 					.rank(rank)
 					.pollingIntervalMs(pollingIntervalMs)
@@ -56,7 +65,7 @@ public class QueueService {
 			}
 			else {
 				return EnterDTO.Result.builder()
-					.token(user.getId().toString())
+					.token(token)
 					.needToChoose(true)	// 선택 필요
 					.rank(rank)
 					.pollingIntervalMs(pollingIntervalMs)
@@ -73,7 +82,7 @@ public class QueueService {
 			}
 
 			return EnterDTO.Result.builder()
-				.token(user.getId().toString())
+				.token(token)
 				.needToChoose(false)
 				.rank(rank)
 				.pollingIntervalMs(JitterUtil.nextPollIntervalMillis(rank))
@@ -88,7 +97,7 @@ public class QueueService {
 			long pollingIntervalMs = JitterUtil.nextPollIntervalMillis(rank);
 
 			return EnterDTO.Result.builder()
-				.token(user.getId().toString())
+				.token(token)
 				.needToChoose(false)
 				.rank(rank)
 				.pollingIntervalMs(pollingIntervalMs)
