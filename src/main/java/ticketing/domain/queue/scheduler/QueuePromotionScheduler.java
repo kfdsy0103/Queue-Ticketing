@@ -22,14 +22,15 @@ import ticketing.global.util.RedisUtil;
 @RequiredArgsConstructor
 public class QueuePromotionScheduler {
 
-	private static final long MAX_ACTIVE_USERS_PER_SCHEDULE = 100;
+	private static final long PROMOTION_BATCH_SIZE = 100;
 	private static final Duration ACTIVE_TTL = Duration.ofMinutes(7);
 
 	private final RedisUtil redisUtil;
 	private final ConcertScheduleRepository concertScheduleRepository;
 
 	/**
-	 * 티켓이 오픈됐고 공연일이 지나지 않은 콘서트 회차 목록을 조회하여 회차별로 여유 슬롯만큼 입장 처리하는 스케쥴러입니다.
+	 * 티켓이 오픈됐고 공연일이 지나지 않은 콘서트 회차 목록을 조회하여,
+	 * 회차별로 2초마다 100명씩 입장 처리(Active)합니다.
 	*/
 	@Async("queueTaskExecutor")
 	@Scheduled(fixedDelay = 2000)
@@ -51,8 +52,8 @@ public class QueuePromotionScheduler {
 	}
 
 	/**
-	 * 콘서트 회차 하나에 대해 여유 슬롯만큼 대기열 앞쪽 사용자를 입장 처리합니다.
-	 * 입장 처리된 사용자는 Hash 내의 개별 필드 TTL(HEXPIRE)로 관리됩니다. 7.4*
+	 * 콘서트 회차 하나에 대해 대기열 앞쪽 사용자 100명을 입장 처리합니다.
+	 * 입장 처리된 사용자는 Hash 내의 개별 필드 TTL(HEXPIRE)로 관리됩니다. Redis 7.4+
 	 */
 	private void promote(Long concertScheduleId) {
 
@@ -60,12 +61,8 @@ public class QueuePromotionScheduler {
 		String waitingKey = QueueRedisKeys.waitingKey(concertScheduleId);
 		String activeKey = QueueRedisKeys.activeKey(concertScheduleId);
 
-		long freeSlots = MAX_ACTIVE_USERS_PER_SCHEDULE - redisUtil.hSize(activeKey);
-		if (freeSlots <= 0) {
-			return;
-		}
-
-		Set<ZSetOperations.TypedTuple<Object>> promoted = redisUtil.zPopMin(waitingKey, freeSlots);
+		// ZPOPMIN 앞에서 100개
+		Set<ZSetOperations.TypedTuple<Object>> promoted = redisUtil.zPopMin(waitingKey, PROMOTION_BATCH_SIZE);
 		if (promoted == null || promoted.isEmpty()) {
 			return;
 		}
