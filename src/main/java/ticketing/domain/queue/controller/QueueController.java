@@ -11,7 +11,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ticketing.domain.queue.dto.EnterDTO;
 import ticketing.domain.queue.dto.StatusDTO;
-import ticketing.domain.queue.service.QueueFacadeService;
 import ticketing.domain.queue.service.QueueService;
 import ticketing.global.apiPayload.CommonResponse;
 import ticketing.global.apiPayload.code.GeneralSuccessCode;
@@ -22,13 +21,12 @@ import ticketing.global.apiPayload.code.GeneralSuccessCode;
 @RequiredArgsConstructor
 public class QueueController {
 
-	private final QueueFacadeService queueFacadeService;
 	private final QueueService queueService;
 
 	@PostMapping("/enter")
 	public CommonResponse<?> enter(@Valid @RequestBody EnterDTO.Request request) {
 		log.info("[QueueController] enter() 호출 - userId: {}", request.getUserId());
-		EnterDTO.Result result = queueFacadeService.enter(request.toCommand());
+		EnterDTO.Result result = queueService.enter(request.toCommand());
 		return CommonResponse.onSuccess(GeneralSuccessCode.CREATED, result.toResponse());
 	}
 

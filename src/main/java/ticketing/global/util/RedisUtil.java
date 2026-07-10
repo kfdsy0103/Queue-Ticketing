@@ -31,45 +31,10 @@ public class RedisUtil {
 	}
 
 	/**
-	 * Key 삭제
-	 */
-	public Boolean delete(String key) {
-		return redisTemplate.delete(key);
-	}
-
-	/**
-	 * 값 조회.
-	 */
-	public Object getValue(String key) {
-		return redisTemplate.opsForValue().get(key);
-	}
-
-	/**
-	 * Sorted Set 멤버 제거.
-	 */
-	public Long zRemove(String key, Object value) {
-		return opsForZSet().remove(key, value);
-	}
-
-	/**
 	 * RedisTemplate에 SortedSet 초기화.
 	 */
 	public ZSetOperations<String, Object> opsForZSet() {
 		return redisTemplate.opsForZSet();
-	}
-
-	/**
-	 * Sorted Set 자료형 사이즈.
-	 */
-	public Long zCard(String key) {
-		return opsForZSet().size(key);
-	}
-
-	/**
-	 * Sorted Set 자료형 start ~ end 까지 조회.
-	 */
-	public Set<Object> zRange(String key, long start, long end) {
-		return opsForZSet().range(key, start, end);
 	}
 
 	/**
@@ -99,6 +64,13 @@ public class RedisUtil {
 	 */
 	public void hSet(String key, String hashKey, String value) {
 		redisTemplate.opsForHash().put(key, hashKey, value);
+	}
+
+	/**
+	 * Hash 필드 삭제.
+	 */
+	public void hDel(String key, String hashKey) {
+		redisTemplate.opsForHash().delete(key, hashKey);
 	}
 
 	/**

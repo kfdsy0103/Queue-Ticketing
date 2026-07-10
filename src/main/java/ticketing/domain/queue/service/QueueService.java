@@ -48,6 +48,7 @@ public class QueueService {
 		String queueKey = QueueRedisKeys.waitingKey(command.getConcertScheduleId());
 		String counterKey = QueueRedisKeys.counterKey(command.getConcertScheduleId());
 		String sessionKey = QueueRedisKeys.sessionKey(command.getConcertScheduleId());
+		String activeKey = QueueRedisKeys.activeKey(command.getConcertScheduleId());
 
 		// 동일 화면(기기)인지 구분하기 위함
 		String sessionId = command.getIdempotentKey();
@@ -59,51 +60,79 @@ public class QueueService {
 			"sessionId", sessionId
 		));
 
+		// 이미 대기열을 통과해 활성화(Active)된 사용자인지 확인
+		String activeSessionId = redisUtil.hGet(activeKey, user.getId().toString());
+		boolean isActive = activeSessionId != null;
+
 		// 1. NORMAL - 일반적인 예매하기 버튼 입장
 		if (command.getEnterType().equals(EnterType.NORMAL)) {
 
-			// 1-1. 이미 대기열에 사용자가 존재하는 경우, 동일한 화면(기기)인지 판단하여 선택지 모달 보여주기 결정
-			Double existingScore = redisUtil.zScore(queueKey, user.getId());
-			if (existingScore != null) {
-				String previousSessionId = redisUtil.hGet(sessionKey, user.getId().toString()); // 대기열을 소유한 화면(기기) 조회
-				boolean isSameSession = sessionId.equals(previousSessionId);
-
-				long rank = safeRank(redisUtil.zRank(queueKey, user.getId()));
-				long pollingIntervalMs = JitterUtil.nextPollIntervalMillis(rank);
-
+			// 1. 이미 active인데 같은 화면인 경우 → 즉시 통과하도록
+			if (isActive && sessionId.equals(activeSessionId)) {
 				return EnterDTO.Result.builder()
 					.token(token)
-					.needToChoose(!isSameSession)	// 다른 화면(기기)이면 선택지 모달을 보여주기 위한 boolean
-					.rank(rank)
-					.pollingIntervalMs(pollingIntervalMs)
+					.needToChoose(false)
+					.rank(0L)
+					.pollingIntervalMs(0L)
 					.build();
 			}
 
-			// 1-2. 대기열에 사용자가 없으면 새로 순번 발급 및 등록
-			long score = redisUtil.increment(counterKey);
-			redisUtil.zAdd(queueKey, user.getId(), score);
-			redisUtil.hSet(sessionKey, user.getId().toString(), sessionId); // 대기열을 가져간 화면(기기) 기록
+			// 2. 이미 active인데 다른 화면인 경우 → 선택지 모달 노출되도록 true
+			if (isActive) {
+				return EnterDTO.Result.builder()
+					.token(token)
+					.needToChoose(true)
+					.rank(0L)
+					.pollingIntervalMs(0L)
+					.build();
+			}
 
-			long rank = safeRank(redisUtil.zRank(queueKey, user.getId()));
-			long pollingIntervalMs = JitterUtil.nextPollIntervalMillis(rank);
+			Double existingScore = redisUtil.zScore(queueKey, user.getId());
+			boolean isWaiting = existingScore != null;
 
-			return EnterDTO.Result.builder()
-				.token(token)
-				.needToChoose(false)
-				.rank(rank)
-				.pollingIntervalMs(pollingIntervalMs)
-				.build();
+			String waitingSessionId = isWaiting ? redisUtil.hGet(sessionKey, user.getId().toString()) : null;
+
+			// 3. 대기열에 이미 있는데 같은 화면인 경우 (따닥) -> SETNX 오버헤드없이 덮어쓰도록 단순화
+			if (isWaiting && sessionId.equals(waitingSessionId)) {
+				return issueRankAndEnter(queueKey, counterKey, sessionKey, user.getId(), sessionId, token);
+			}
+
+			// 4. 대기열에 이미 있는데 다른 화면에서 재진입한 경우 → 선택지 모달 true
+			if (isWaiting) {
+				return EnterDTO.Result.builder()
+					.token(token)
+					.needToChoose(true)
+					.rank(0L)
+					.pollingIntervalMs(0L)
+					.build();
+			}
+
+			// 5. 일반적인 경우 -> 대기열 신규 입장
+			return issueRankAndEnter(queueKey, counterKey, sessionKey, user.getId(), sessionId, token);
 		}
 
-		// 2. RESUME - 기존 순번에 합류
+		// 2. RESUME - 모달에서 '기존 예매 유지'를 선택한 경우 기존 상태 유지하고 소유 화면만 현재 화면으로 이전
 		if (EnterType.RESUME.equals(command.getEnterType())) {
-			Long rank = redisUtil.zRank(queueKey, user.getId());
 
+			// 기존 세션이 이미 active였다면 소유 화면만 이전하고 즉시 통과
+			if (isActive) {
+				redisUtil.hSet(activeKey, user.getId().toString(), sessionId);
+				redisUtil.hSet(sessionKey, user.getId().toString(), sessionId); // status()가 검증하는 소유 화면도 함께 이전
+
+				return EnterDTO.Result.builder()
+					.token(token)
+					.needToChoose(false)
+					.rank(0L)
+					.pollingIntervalMs(0L)
+					.build();
+			}
+
+			Long rank = redisUtil.zRank(queueKey, user.getId());
 			if (rank == null) {
 				throw new GeneralException(QueueErrorCode.NOT_IN_QUEUE); // 이미 처리되었거나 없는 경우
 			}
 
-			redisUtil.hSet(sessionKey, user.getId().toString(), sessionId); // 대기열을 새로운 화면(기기)에서 가져갔음을 덮어쓰기
+			redisUtil.hSet(sessionKey, user.getId().toString(), sessionId); // 소유 화면 이전(덮어쓰기)
 
 			long pollingIntervalMs = JitterUtil.nextPollIntervalMillis(rank);
 
@@ -115,21 +144,15 @@ public class QueueService {
 				.build();
 		}
 
-		// 3. REJOIN - 새롭게 순번 발급
+		// 3. REJOIN - 모달에서 '새로운 예매 진행'을 선택한 경우, 기존 예매 종료 후 순번 재발급
 		if (EnterType.REJOIN.equals(command.getEnterType())) {
-			long score = redisUtil.increment(counterKey);
-			redisUtil.zAdd(queueKey, user.getId(), score); // 순번 덮어쓰기
-			redisUtil.hSet(sessionKey, user.getId().toString(), sessionId); // 대기열을 새로운 화면(기기)에서 가져갔음을 덮어쓰기
 
-			long rank = safeRank(redisUtil.zRank(queueKey, user.getId()));
-			long pollingIntervalMs = JitterUtil.nextPollIntervalMillis(rank);
+			// 기존 세션이 이미 Active였다면 Active 슬롯 삭제
+			if (isActive) {
+				redisUtil.hDel(activeKey, user.getId().toString());
+			}
 
-			return EnterDTO.Result.builder()
-				.token(token)
-				.needToChoose(false)
-				.rank(rank)
-				.pollingIntervalMs(pollingIntervalMs)
-				.build();
+			return issueRankAndEnter(queueKey, counterKey, sessionKey, user.getId(), sessionId, token);
 		}
 
 		throw new GeneralException(QueueErrorCode.INVALID_ENTER_TYPE);
@@ -186,6 +209,32 @@ public class QueueService {
 			.rank(rank)
 			.pollingIntervalMs(pollingIntervalMs)
 			.isActive(false)
+			.build();
+	}
+
+	/**
+	 * 새로운 순번을 발급(또는 갱신)하고 대기열에 등록한 뒤 결과를 반환합니다.
+	 */
+	private EnterDTO.Result issueRankAndEnter(
+		String queueKey,
+		String counterKey,
+		String sessionKey,
+		Long userId,
+		String sessionId,
+		String token
+	) {
+		long score = redisUtil.increment(counterKey);
+		redisUtil.zAdd(queueKey, userId, score);
+		redisUtil.hSet(sessionKey, userId.toString(), sessionId); // 대기열을 가져간 화면(기기) 기록
+
+		long rank = safeRank(redisUtil.zRank(queueKey, userId));
+		long pollingIntervalMs = JitterUtil.nextPollIntervalMillis(rank);
+
+		return EnterDTO.Result.builder()
+			.token(token)
+			.needToChoose(false)
+			.rank(rank)
+			.pollingIntervalMs(pollingIntervalMs)
 			.build();
 	}
 
