@@ -1,4 +1,4 @@
-package ticketing.domain.venue.entity;
+package ticketing.domain.venue.venue.entity;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -25,4 +25,8 @@ public class Venue extends BaseEntity {
     private Long id;
 
     private String name;
+
+    public void update(String name) {
+        this.name = name;
+    }
 }

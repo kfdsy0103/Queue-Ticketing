@@ -1,4 +1,4 @@
-package ticketing.domain.venue.entity;
+package ticketing.domain.venue.seat.entity;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -13,6 +13,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import ticketing.domain.venue.seatgrade.entity.SeatGrade;
+import ticketing.domain.venue.venue.entity.Venue;
 import ticketing.global.entity.BaseEntity;
 
 @Entity
@@ -36,4 +38,10 @@ public class Seat extends BaseEntity {
     private SeatGrade seatGrade;
 
     private String seatNumber;
+
+    public void update(Venue venue, SeatGrade seatGrade, String seatNumber) {
+        this.venue = venue;
+        this.seatGrade = seatGrade;
+        this.seatNumber = seatNumber;
+    }
 }

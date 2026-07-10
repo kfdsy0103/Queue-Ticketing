@@ -12,8 +12,8 @@ import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import ticketing.domain.concert.entity.ConcertSchedule;
-import ticketing.domain.concert.repository.ConcertScheduleRepository;
+import ticketing.domain.concert.concertschedule.entity.ConcertSchedule;
+import ticketing.domain.concert.concertschedule.repository.ConcertScheduleRepository;
 import ticketing.domain.queue.constants.QueueRedisKeys;
 import ticketing.global.util.RedisUtil;
 

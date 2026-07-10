@@ -1,4 +1,4 @@
-package ticketing.domain.order.entity;
+package ticketing.domain.order.order.entity;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -38,6 +38,12 @@ public class Order extends BaseEntity {
     private OrderStatus orderStatus;
 
     private int totalPrice;
+
+    public void update(User user, OrderStatus orderStatus, int totalPrice) {
+        this.user = user;
+        this.orderStatus = orderStatus;
+        this.totalPrice = totalPrice;
+    }
 
     public enum OrderStatus {
         PENDING,

@@ -1,4 +1,4 @@
-package ticketing.domain.concert.entity;
+package ticketing.domain.concert.concert.entity;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -13,7 +13,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import ticketing.domain.venue.entity.Venue;
+import ticketing.domain.venue.venue.entity.Venue;
 import ticketing.global.entity.BaseEntity;
 
 @Entity

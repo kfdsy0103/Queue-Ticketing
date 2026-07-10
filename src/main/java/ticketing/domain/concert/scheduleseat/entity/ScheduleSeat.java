@@ -1,4 +1,4 @@
-package ticketing.domain.concert.entity;
+package ticketing.domain.concert.scheduleseat.entity;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -15,7 +15,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import ticketing.domain.venue.entity.Seat;
+import ticketing.domain.concert.concertschedule.entity.ConcertSchedule;
+import ticketing.domain.venue.seat.entity.Seat;
 import ticketing.global.entity.BaseEntity;
 
 @Entity

@@ -1,4 +1,4 @@
-package ticketing.domain.concert.entity;
+package ticketing.domain.concert.concertschedule.entity;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -16,6 +16,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import ticketing.domain.concert.concert.entity.Concert;
 import ticketing.global.entity.BaseEntity;
 
 @Entity

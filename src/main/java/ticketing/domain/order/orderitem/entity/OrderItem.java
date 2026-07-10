@@ -1,4 +1,4 @@
-package ticketing.domain.order.entity;
+package ticketing.domain.order.orderitem.entity;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -14,7 +14,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import ticketing.domain.concert.entity.ScheduleSeat;
+import ticketing.domain.concert.scheduleseat.entity.ScheduleSeat;
+import ticketing.domain.order.order.entity.Order;
 import ticketing.global.entity.BaseEntity;
 
 @Entity
@@ -38,4 +39,10 @@ public class OrderItem extends BaseEntity {
     private ScheduleSeat scheduleSeat;
 
     private int price;
+
+    public void update(Order order, ScheduleSeat scheduleSeat, int price) {
+        this.order = order;
+        this.scheduleSeat = scheduleSeat;
+        this.price = price;
+    }
 }

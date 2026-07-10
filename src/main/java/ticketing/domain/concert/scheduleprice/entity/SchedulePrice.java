@@ -1,4 +1,4 @@
-package ticketing.domain.concert.entity;
+package ticketing.domain.concert.scheduleprice.entity;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -14,7 +14,8 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import ticketing.domain.venue.entity.SeatGrade;
+import ticketing.domain.concert.concertschedule.entity.ConcertSchedule;
+import ticketing.domain.venue.seatgrade.entity.SeatGrade;
 import ticketing.global.entity.BaseEntity;
 
 @Entity
