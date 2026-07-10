@@ -37,4 +37,12 @@ public class QueueController {
 		StatusDTO.Result result = queueService.status(request.toCommand());
 		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
 	}
+
+	@PostMapping("/takeover")
+	public CommonResponse<TakeoverDTO.Response> takeover(@Valid @RequestBody TakeoverDTO.Request request) {
+		log.info("[QueueController] takeover() 호출 - userId: {}", request.getUserId());
+		TakeoverDTO.Result result = queueService.takeover(request.toCommand());
+		return CommonResponse.onSuccess(GeneralSuccessCode.CREATED, result.toResponse());
+	}
+
 }

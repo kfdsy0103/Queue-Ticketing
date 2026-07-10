@@ -10,6 +10,7 @@ import lombok.extern.slf4j.Slf4j;
 import ticketing.domain.queue.constants.QueueRedisKeys;
 import ticketing.domain.queue.dto.EnterDTO;
 import ticketing.domain.queue.dto.StatusDTO;
+import ticketing.domain.queue.dto.TakeoverDTO;
 import ticketing.domain.queue.enums.EnterType;
 import ticketing.domain.queue.exception.QueueErrorCode;
 import ticketing.domain.user.entity.User;
@@ -125,6 +126,55 @@ public class QueueService {
 			.rank(rank)
 			.pollingIntervalMs(pollingIntervalMs)
 			.isActive(isActive)
+			.build();
+	}
+
+	/**
+	 * 대기열 이어받기를 처리합니다.
+	 * 기존 순번은 그대로 두고 queueSessionId만 새로 발급합니다.
+	 * 기존 화면의 폴링은 status()에서 감지되어 SESSION_REVOKED로 종료됩니다.
+	 */
+	public TakeoverDTO.Result takeover(TakeoverDTO.Command command) {
+
+		User user = userRepository.findById(command.getUserId())
+			.orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
+
+		String waitingKey = QueueRedisKeys.waitingKey(command.getConcertScheduleId());
+		String userInfoKey = QueueRedisKeys.userInfoKey(command.getConcertScheduleId());
+		String activeKey = QueueRedisKeys.activeKey(command.getConcertScheduleId());
+
+		boolean isActive = redisUtil.hHasKey(activeKey, user.getId().toString());
+		boolean isWaiting = redisUtil.zRank(waitingKey, user.getId()) != null;
+		if (!isActive && !isWaiting) {
+			throw new GeneralException(QueueErrorCode.NOT_IN_QUEUE);
+		}
+
+		// 기존 화면 종료를 위한 queueSessionId 갱신 (순번/활성 상태는 그대로 유지)
+		String queueSessionId = UUID.randomUUID().toString();
+		redisUtil.hSet(userInfoKey, user.getId().toString(), queueSessionId);
+
+		String token = jwtTokenUtil.generateToken(Map.of(
+			"userId", user.getId(),
+			"concertScheduleId", command.getConcertScheduleId(),
+			"queueSessionId", queueSessionId
+		));
+
+		if (isActive) {
+			return TakeoverDTO.Result.builder()
+				.token(token)
+				.isActive(true)
+				.redirectEndpoint(REDIRECT_ENDPOINT)
+				.build();
+		}
+
+		long rank = safeRank(redisUtil.zRank(waitingKey, user.getId()));
+		long pollingIntervalMs = JitterUtil.nextPollIntervalMillis(rank);
+
+		return TakeoverDTO.Result.builder()
+			.token(token)
+			.rank(rank)
+			.pollingIntervalMs(pollingIntervalMs)
+			.isActive(false)
 			.build();
 	}
 
