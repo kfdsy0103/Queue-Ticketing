@@ -19,16 +19,16 @@ public final class QueueRedisKeys {
 	}
 
 	/**
-	 * 사용자별로 대기열을 소유한 화면(기기)을 기록하는 Hash.
+	 * 사용자별 세션 정보 Hash. (field: userId, value: queueSessionId)
 	 */
-	public static String sessionKey(Long concertScheduleId) {
-		return waitingKey(concertScheduleId) + ":session";
+	public static String userInfoKey(Long concertScheduleId) {
+		return waitingKey(concertScheduleId) + ":info";
 	}
 
 	/**
-	 * 입장이 승격된 사용자 목록 Hash. (field: userId, TTL: 필드 단위 HEXPIRE Redis 7.4+)
+	 * 작업열(Active) 사용자 목록 Hash. (field: userId, 필드별 TTL은 HEXPIRE로 관리, Redis 7.4+)
 	 */
 	public static String activeKey(Long concertScheduleId) {
-		return "active:concertSchedule:" + concertScheduleId;
+		return waitingKey(concertScheduleId) + ":active";
 	}
 }

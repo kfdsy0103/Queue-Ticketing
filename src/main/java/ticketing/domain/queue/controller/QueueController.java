@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ticketing.domain.queue.dto.EnterDTO;
 import ticketing.domain.queue.dto.StatusDTO;
+import ticketing.domain.queue.dto.TakeoverDTO;
 import ticketing.domain.queue.service.QueueService;
 import ticketing.global.apiPayload.CommonResponse;
 import ticketing.global.apiPayload.code.GeneralSuccessCode;
@@ -24,16 +25,9 @@ public class QueueController {
 	private final QueueService queueService;
 
 	@PostMapping("/enter")
-	public CommonResponse<?> enter(@Valid @RequestBody EnterDTO.Request request) {
+	public CommonResponse<EnterDTO.Response> enter(@Valid @RequestBody EnterDTO.Request request) {
 		log.info("[QueueController] enter() 호출 - userId: {}", request.getUserId());
 		EnterDTO.Result result = queueService.enter(request.toCommand());
 		return CommonResponse.onSuccess(GeneralSuccessCode.CREATED, result.toResponse());
-	}
-
-	@GetMapping("/status")
-	public CommonResponse<?> status(@Valid @RequestBody StatusDTO.Request request) {
-		log.info("[QueueController] status() 호출 - userId: {}", request.getUserId());
-		StatusDTO.Result result = queueService.status(request.toCommand());
-		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
 	}
 }

@@ -17,17 +17,10 @@ public class RedisUtil {
 	private final RedisTemplate<String, Object> redisTemplate;
 
 	/**
-	 * Sorted Set 추가.
+	 * Sorted Set에 값을 추가합니다. 이미 존재하면 score를 덮어씁니다. (ZADD)
 	 */
 	public Boolean zAdd(String key, Object value, double score) {
 		return opsForZSet().add(key, value, score);
-	}
-
-	/**
-	 * Sorted Set에 이미 존재하지 않는 경우에만 추가. (ZADD NX)
-	 */
-	public Boolean zAddNx(String key, Object value, double score) {
-		return opsForZSet().addIfAbsent(key, value, score);
 	}
 
 	/**
@@ -52,13 +45,6 @@ public class RedisUtil {
 	}
 
 	/**
-	 * Sorted Set 자료형 Value의 score 조회.
-	 */
-	public Double zScore(String key, Object value) {
-		return opsForZSet().score(key, value);
-	}
-
-	/**
 	 * Hash 필드 값 조회.
 	 */
 	public String hGet(String key, String hashKey) {
@@ -74,30 +60,30 @@ public class RedisUtil {
 	}
 
 	/**
-	 * Hash 필드 삭제.
-	 */
-	public void hDel(String key, String hashKey) {
-		redisTemplate.opsForHash().delete(key, hashKey);
-	}
-
-	/**
-	 * Hash 필드 개수 조회.
-	 */
-	public Long hSize(String key) {
-		return redisTemplate.opsForHash().size(key);
-	}
-
-	/**
-	 * Hash 필드에 TTL을 설정합니다. (HEXPIRE, Redis 7.4+ 필요)
-	 */
-	public void hExpire(String key, String hashKey, Duration ttl) {
-		redisTemplate.opsForHash().expire(key, ttl, List.of(hashKey));
-	}
-
-	/**
 	 * Sorted Set에서 score가 가장 낮은 멤버부터 최대 count개를 원자적으로 꺼냅니다. (ZPOPMIN)
 	 */
 	public Set<ZSetOperations.TypedTuple<Object>> zPopMin(String key, long count) {
 		return opsForZSet().popMin(key, count);
+	}
+
+	/**
+	 * Hash 필드의 존재 여부를 확인합니다. (HEXISTS)
+	 */
+	public boolean hHasKey(String key, String hashKey) {
+		return redisTemplate.opsForHash().hasKey(key, hashKey);
+	}
+
+	/**
+	 * Hash 필드를 삭제합니다. (HDEL)
+	 */
+	public void hDelete(String key, String hashKey) {
+		redisTemplate.opsForHash().delete(key, hashKey);
+	}
+
+	/**
+	 * Hash 필드 하나에만 TTL을 설정합니다. (HEXPIRE) Redis 7.4+
+	 */
+	public void hExpire(String key, Duration ttl, String hashKey) {
+		redisTemplate.opsForHash().expire(key, ttl, List.of(hashKey));
 	}
 }

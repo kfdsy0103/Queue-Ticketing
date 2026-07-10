@@ -10,11 +10,9 @@ import ticketing.global.apiPayload.code.BaseCode;
 @RequiredArgsConstructor
 public enum QueueErrorCode implements BaseCode {
 
-	INVALID_ENTER_TYPE(HttpStatus.BAD_REQUEST, "QUEUE_400_01", "유효하지 않은 대기열 입장 타입입니다."),
 	NOT_IN_QUEUE(HttpStatus.NOT_FOUND, "QUEUE_404_01", "대기열에 등록되지 않은 회원입니다."),
-	DIFFERENT_SESSION(HttpStatus.CONFLICT, "QUEUE_409_01", "다른 화면(기기)에서 처리 중입니다."),
-	SESSION_TERMINATED(HttpStatus.CONFLICT, "QUEUE_409_2", "예매 진행 중 재입장이 감지되어 세션이 종료되었습니다."),
-	QUEUE_BUSY(HttpStatus.TOO_MANY_REQUESTS, "QUEUE_429_01", "요청이 몰려 처리 중입니다. 잠시 후 다시 시도해주세요.");
+	SESSION_REVOKED(HttpStatus.CONFLICT, "QUEUE_409_01", "다른 화면에서 이어받아 세션이 종료되었습니다."),
+	ALREADY_JOINED(HttpStatus.CONFLICT, "QUEUE_409_03", "이미 대기열에 참여 중입니다.");
 
 	private final HttpStatus httpStatus;
 	private final String code;
