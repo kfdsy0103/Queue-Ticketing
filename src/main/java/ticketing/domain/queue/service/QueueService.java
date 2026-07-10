@@ -9,11 +9,13 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ticketing.domain.queue.constants.QueueRedisKeys;
 import ticketing.domain.queue.dto.EnterDTO;
+import ticketing.domain.queue.dto.StatusDTO;
 import ticketing.domain.queue.enums.EnterType;
 import ticketing.domain.queue.exception.QueueErrorCode;
 import ticketing.domain.user.entity.User;
 import ticketing.domain.user.exception.UserErrorCode;
 import ticketing.domain.user.repository.UserRepository;
+import ticketing.global.apiPayload.code.GeneralErrorCode;
 import ticketing.global.apiPayload.exception.GeneralException;
 import ticketing.global.util.JitterUtil;
 import ticketing.global.util.JwtTokenUtil;
@@ -86,8 +88,45 @@ public class QueueService {
 
 	/**
 	 * 대기열에서 사용자의 순번 상태를 조회합니다.
-	 * 토큰에 담긴 화면(queueSessionId)이 현재 등록된 화면과 다르면 다른 화면에서 이어받은 것으로 간주합니다.
+	 * 토큰에 담긴 queueSessionId이 현재 Redis에 기록된 화면과 다르면 다른 화면에서 이어간 것으로 간주하여 모달창 예외가 나갑니다.
 	 */
+	public StatusDTO.Result status(StatusDTO.Command command) {
+
+		Long concertScheduleId = jwtTokenUtil.getClaim(command.getToken(), "concertScheduleId", Long.class);
+		Long userId = jwtTokenUtil.getClaim(command.getToken(), "userId", Long.class);
+		String queueSessionId = jwtTokenUtil.getClaim(command.getToken(), "queueSessionId", String.class);
+
+		// 토큰에 기록된 userId와 인증 객체에 담긴 userId 일치 검사
+		if (!command.getUserId().equals(userId)) {
+			throw new GeneralException(GeneralErrorCode.FORBIDDEN);
+		}
+
+		User user = userRepository.findById(userId)
+			.orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
+
+		String waitingKey = QueueRedisKeys.waitingKey(concertScheduleId);
+		String userInfoKey = QueueRedisKeys.userInfoKey(concertScheduleId);
+		String activeKey = QueueRedisKeys.activeKey(concertScheduleId);
+
+		String storedSessionId = redisUtil.hGet(userInfoKey, user.getId().toString());
+		if (storedSessionId == null) {
+			throw new GeneralException(QueueErrorCode.NOT_IN_QUEUE);	// 이미 처리된 경우
+		}
+		if (!queueSessionId.equals(storedSessionId)) {
+			throw new GeneralException(QueueErrorCode.SESSION_REVOKED);	// 다른 화면에서 예매를 이어받은 경우 (기존 화면은 종료)
+		}
+
+		// Active 상태인지 확인 후에 return;
+		boolean isActive = redisUtil.hHasKey(activeKey, user.getId().toString());
+		long rank = safeRank(redisUtil.zRank(waitingKey, user.getId()));
+		long pollingIntervalMs = JitterUtil.nextPollIntervalMillis(rank);
+
+		return StatusDTO.Result.builder()
+			.rank(rank)
+			.pollingIntervalMs(pollingIntervalMs)
+			.isActive(isActive)
+			.build();
+	}
 
 	/**
 	 * Long → long 변환 시 null로 인한 NPE를 방지합니다.

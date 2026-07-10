@@ -30,4 +30,11 @@ public class QueueController {
 		EnterDTO.Result result = queueService.enter(request.toCommand());
 		return CommonResponse.onSuccess(GeneralSuccessCode.CREATED, result.toResponse());
 	}
+
+	@GetMapping("/status")
+	public CommonResponse<StatusDTO.Response> status(@Valid @RequestBody StatusDTO.Request request) {
+		log.info("[QueueController] status() 호출 - userId: {}", request.getUserId());
+		StatusDTO.Result result = queueService.status(request.toCommand());
+		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
+	}
 }

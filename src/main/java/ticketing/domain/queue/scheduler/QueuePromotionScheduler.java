@@ -70,7 +70,7 @@ public class QueuePromotionScheduler {
 		for (ZSetOperations.TypedTuple<Object> tuple : promoted) {
 			String userId = tuple.getValue().toString();
 			redisUtil.hSet(activeKey, userId, "1");
-			redisUtil.hExpire(activeKey, userId, ACTIVE_TTL);
+			redisUtil.hExpire(activeKey, ACTIVE_TTL, userId);
 		}
 
 		log.info("[QueuePromotionScheduler] concertScheduleId={} 사용자 {}명 입장 처리", concertScheduleId, promoted.size());
