@@ -2,10 +2,10 @@ package ticketing.global.util;
 
 import java.time.Duration;
 import java.util.List;
-import java.util.Set;
 
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
@@ -60,13 +60,6 @@ public class RedisUtil {
 	}
 
 	/**
-	 * Sorted Set에서 score가 가장 낮은 멤버부터 최대 count개를 원자적으로 꺼냅니다. (ZPOPMIN)
-	 */
-	public Set<ZSetOperations.TypedTuple<Object>> zPopMin(String key, long count) {
-		return opsForZSet().popMin(key, count);
-	}
-
-	/**
 	 * Hash 필드의 존재 여부를 확인합니다. (HEXISTS)
 	 */
 	public boolean hHasKey(String key, String hashKey) {
@@ -81,9 +74,9 @@ public class RedisUtil {
 	}
 
 	/**
-	 * Hash 필드 하나에만 TTL을 설정합니다. (HEXPIRE) Redis 7.4+
+	 * Lua 스크립트를 원자적으로 실행합니다.
 	 */
-	public void hExpire(String key, Duration ttl, String hashKey) {
-		redisTemplate.opsForHash().expire(key, ttl, List.of(hashKey));
+	public <T> T execute(RedisScript<T> script, List<String> keys, Object... args) {
+		return redisTemplate.execute(script, keys, args);
 	}
 }
