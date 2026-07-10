@@ -92,7 +92,7 @@ public class QueueService {
 
 			String waitingSessionId = isWaiting ? redisUtil.hGet(sessionKey, user.getId().toString()) : null;
 
-			// 3. 대기열에 이미 있는데 같은 화면인 경우 (따닥) -> SETNX 오버헤드없이 덮어쓰도록 단순화
+			// 3. 대기열에 이미 있는데 같은 화면인 경우 (따닥) -> zAddNx로 첫 요청의 순번으로 결정되도록
 			if (isWaiting && sessionId.equals(waitingSessionId)) {
 				return issueRankAndEnter(queueKey, counterKey, sessionKey, user.getId(), sessionId, token);
 			}
@@ -224,7 +224,7 @@ public class QueueService {
 		String token
 	) {
 		long score = redisUtil.increment(counterKey);
-		redisUtil.zAdd(queueKey, userId, score);
+		redisUtil.zAddNx(queueKey, userId, score);	// 따닥인 경우 첫 순번으로 보장되도록 nx 수정
 		redisUtil.hSet(sessionKey, userId.toString(), sessionId); // 대기열을 가져간 화면(기기) 기록
 
 		long rank = safeRank(redisUtil.zRank(queueKey, userId));

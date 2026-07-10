@@ -37,4 +37,10 @@ public class ConcertSchedule extends BaseEntity {
     private LocalDate performanceDate;
 
     private LocalDateTime ticketOpenAt;
+
+    public void update(Concert concert, LocalDate performanceDate, LocalDateTime ticketOpenAt) {
+        this.concert = concert;
+        this.performanceDate = performanceDate;
+        this.ticketOpenAt = ticketOpenAt;
+    }
 }

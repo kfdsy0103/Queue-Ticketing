@@ -8,31 +8,40 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import ticketing.domain.venue.entity.Venue;
+import ticketing.domain.venue.entity.SeatGrade;
 import ticketing.global.entity.BaseEntity;
 
 @Entity
-@Table(name = "concerts")
+@Table(name = "schedule_prices", uniqueConstraints = @UniqueConstraint(columnNames = {"concert_schedule_id", "seat_grade_id"}))
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @Builder
-public class Concert extends BaseEntity {
+public class SchedulePrice extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "venue_id")
-    private Venue venue;
+    @JoinColumn(name = "concert_schedule_id")
+    private ConcertSchedule concertSchedule;
 
-    private String title;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "seat_grade_id")
+    private SeatGrade seatGrade;
 
-    private String content;
+    private int price;
+
+    public void update(ConcertSchedule concertSchedule, SeatGrade seatGrade, int price) {
+        this.concertSchedule = concertSchedule;
+        this.seatGrade = seatGrade;
+        this.price = price;
+    }
 }

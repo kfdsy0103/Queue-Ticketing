@@ -1,8 +1,6 @@
 package ticketing.domain.concert.entity;
 
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -15,35 +13,32 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import ticketing.domain.venue.entity.Seat;
+import ticketing.domain.venue.entity.Venue;
 import ticketing.global.entity.BaseEntity;
 
 @Entity
-@Table(name = "schedule_seats")
+@Table(name = "concerts")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @AllArgsConstructor(access = AccessLevel.PRIVATE)
 @Builder
-public class ScheduleSeat extends BaseEntity {
+public class Concert extends BaseEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "concert_schedule_id")
-    private ConcertSchedule concertSchedule;
+    @JoinColumn(name = "venue_id")
+    private Venue venue;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "seat_id")
-    private Seat seat;
+    private String title;
 
-    @Enumerated(EnumType.STRING)
-    private SeatStatus seatStatus;
+    private String content;
 
-    public enum SeatStatus {
-        AVAILABLE,
-        RESERVED,
-        SOLD
+    public void update(Venue venue, String title, String content) {
+        this.venue = venue;
+        this.title = title;
+        this.content = content;
     }
 }

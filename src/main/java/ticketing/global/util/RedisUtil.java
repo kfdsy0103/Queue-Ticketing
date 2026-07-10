@@ -24,6 +24,13 @@ public class RedisUtil {
 	}
 
 	/**
+	 * Sorted Set에 이미 존재하지 않는 경우에만 추가. (ZADD NX)
+	 */
+	public Boolean zAddNx(String key, Object value, double score) {
+		return opsForZSet().addIfAbsent(key, value, score);
+	}
+
+	/**
 	 * 카운터 변수 원자적 증가 (INCR).
 	 */
 	public Long increment(String key) {
