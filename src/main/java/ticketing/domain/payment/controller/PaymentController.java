@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import ticketing.domain.payment.dto.ApproveDTO;
 import ticketing.domain.payment.dto.ReadyDTO;
 import ticketing.domain.payment.service.PaymentService;
 import ticketing.global.apiPayload.CommonResponse;
@@ -32,5 +33,16 @@ public class PaymentController {
 		log.info("[PaymentController] ready() 호출 - userId: {}", request.getUserId());
 		ReadyDTO.Result result = paymentService.ready(request.toCommand());
 		return CommonResponse.onSuccess(GeneralSuccessCode.CREATED, result.toResponse());
+	}
+
+	/**
+	 * 카카오페이 결제 승인 단계로, 실제 돈이 출금되는 단계입니다.
+	 * approval_url을 프론트 쪽으로 설정하여, 한번 경유한 뒤 우리 백엔드로 POST 요청을 보내는 상황을 가정.
+	 */
+	@PostMapping("/approve")
+	public CommonResponse<ApproveDTO.Response> approve(@RequestBody @Valid ApproveDTO.Request request) {
+		log.info("[PaymentController] approve() 호출 - orderId: {}", request.getOrderId());
+		ApproveDTO.Result result = paymentService.approve(request.toCommand());
+		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
 	}
 }

@@ -5,16 +5,19 @@ import java.util.UUID;
 import org.springframework.stereotype.Component;
 
 import lombok.extern.slf4j.Slf4j;
+import ticketing.domain.payment.client.dto.KakaoPayApprove;
 import ticketing.domain.payment.client.dto.KakaoPayReady;
 import ticketing.global.apiPayload.code.GeneralErrorCode;
 import ticketing.global.apiPayload.exception.GeneralException;
 
 /**
- * 카카오페이 결제 API를 모방한 Client입니다.
+ * 카카오페이 결제 API를 모방한 Client입니다. (실제 연동은 X)
  */
 @Slf4j
 @Component
 public class KakaoPayApiClient {
+
+	// private final RestClient restClient;
 
 	/**
 	 * PG 쪽 결제 고유 식별자인 tid 및 리다이렉트 경로를 반환합니다.
@@ -39,6 +42,29 @@ public class KakaoPayApiClient {
 				.build();
 		} catch (InterruptedException e) {
 			log.error("PaymentClient - ready()에서 Thread.sleep() 에러 발생");
+			Thread.currentThread().interrupt();
+			throw new GeneralException(GeneralErrorCode.INTERNAL_SERVER_ERROR);
+		}
+	}
+
+	/**
+	 * tid와 pgToken으로 결제 승인을 요청하고, 승인 고유 번호 aid를 반환합니다.
+	 */
+	public KakaoPayApprove approve(String tid, String pgToken) {
+		try {
+
+			// approve API 호출 도 0.5초가 걸린다고 가정
+			Thread.sleep(500);
+
+			String aid = "aid_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
+			log.info("PG 결제 승인 완료. (출금 완료) tid={}, aid={}", tid, aid);
+
+			return KakaoPayApprove.builder()
+				.aid(aid)
+				.tid(tid)
+				.build();
+		} catch (InterruptedException e) {
+			log.error("PaymentClient - approve()에서 Thread.sleep() 에러 발생");
 			Thread.currentThread().interrupt();
 			throw new GeneralException(GeneralErrorCode.INTERNAL_SERVER_ERROR);
 		}

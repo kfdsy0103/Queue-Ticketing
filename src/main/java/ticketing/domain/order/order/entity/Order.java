@@ -15,7 +15,9 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import ticketing.domain.order.order.exception.OrderErrorCode;
 import ticketing.domain.user.entity.User;
+import ticketing.global.apiPayload.exception.GeneralException;
 import ticketing.global.entity.BaseEntity;
 
 @Entity
@@ -39,10 +41,11 @@ public class Order extends BaseEntity {
 
     private int totalPrice;
 
-    public void update(User user, OrderStatus orderStatus, int totalPrice) {
-        this.user = user;
-        this.orderStatus = orderStatus;
-        this.totalPrice = totalPrice;
+    public void complete() {
+        if (this.orderStatus != OrderStatus.PENDING) {
+            throw new GeneralException(OrderErrorCode.NOT_PENDING_ORDER);
+        }
+        this.orderStatus = OrderStatus.COMPLETED;
     }
 
     public enum OrderStatus {

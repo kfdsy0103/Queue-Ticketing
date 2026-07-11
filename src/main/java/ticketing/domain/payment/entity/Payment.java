@@ -1,8 +1,6 @@
 package ticketing.domain.payment.entity;
 
 import jakarta.persistence.Entity;
-import jakarta.persistence.EnumType;
-import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -39,4 +37,10 @@ public class Payment extends BaseEntity {
 	private String redirectUrl;
 
 	private int totalPrice;
+
+	private String aid;
+
+	public void approve(String aid) {
+		this.aid = aid;
+	}
 }

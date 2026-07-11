@@ -9,7 +9,9 @@ import ticketing.domain.order.order.entity.Order;
 import ticketing.domain.order.order.exception.OrderErrorCode;
 import ticketing.domain.order.order.repository.OrderRepository;
 import ticketing.domain.payment.client.KakaoPayApiClient;
+import ticketing.domain.payment.client.dto.KakaoPayApprove;
 import ticketing.domain.payment.client.dto.KakaoPayReady;
+import ticketing.domain.payment.dto.ApproveDTO;
 import ticketing.domain.payment.dto.ReadyDTO;
 import ticketing.domain.payment.entity.Payment;
 import ticketing.domain.payment.exception.PaymentErrorCode;
@@ -55,6 +57,42 @@ public class PaymentService {
 
 		return ReadyDTO.Result.builder()
 			.redirectUrl(kakaoPayReadyResult.getRedirectUrl())
+			.build();
+	}
+
+	/**
+	 * 결제 승인(approve)을 처리합니다.
+	 * 카카오페이가 콜백으로 넘겨준 pgToken과, ready 단계에서 저장해둔 tid로 승인을 요청합니다.
+	 */
+	@Transactional
+	public ApproveDTO.Result approve(ApproveDTO.Command command) {
+
+		Order order = orderRepository.findById(command.getOrderId())
+			.orElseThrow(() -> new GeneralException(OrderErrorCode.ORDER_NOT_FOUND));
+
+		// 주문 생성자와 API 호출자 일치 검사
+		if (!order.getUser().getId().equals(command.getUserId())) {
+			throw new GeneralException(GeneralErrorCode.FORBIDDEN);
+		}
+
+		// 해당 orderId 건은 이미 결제 된 상태 (todo: 바깥에 멱등 처리 필요)
+		if (order.getOrderStatus() == Order.OrderStatus.COMPLETED) {
+			throw new GeneralException(PaymentErrorCode.ALREADY_PAID);
+		}
+
+		// orderId로 생성된 결제 건 조회
+		Payment payment = paymentRepository.findByOrderId(order.getId())
+			.orElseThrow(() -> new GeneralException(PaymentErrorCode.PAYMENT_NOT_FOUND));
+
+		// Kakao pay 결제 처리 (이 단계에서 출금)
+		KakaoPayApprove kakaoPayApproveResult = kakaoPayApiClient.approve(payment.getTid(), command.getPgToken());
+
+		// Order 건 COMPLETED 처리 (변경 감지)
+		order.complete();
+
+		return ApproveDTO.Result.builder()
+			.orderId(order.getId())
+			.tid(kakaoPayApproveResult.getTid())
 			.build();
 	}
 }
