@@ -2,7 +2,10 @@ package ticketing.domain.payment.client;
 
 import java.util.UUID;
 
+import org.springframework.retry.annotation.Backoff;
+import org.springframework.retry.annotation.Retryable;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.HttpClientErrorException;
 
 import lombok.extern.slf4j.Slf4j;
 import ticketing.domain.payment.client.dto.KakaoPayApprove;
@@ -22,6 +25,15 @@ public class KakaoPayApiClient {
 	/**
 	 * PG 쪽 결제 고유 식별자인 tid 및 리다이렉트 경로를 반환합니다.
 	 */
+	@Retryable(
+		include = Exception.class,
+		exclude = {
+			HttpClientErrorException.BadRequest.class,
+			HttpClientErrorException.NotFound.class
+		},
+		maxAttempts = 3,
+		backoff = @Backoff(delay = 500)
+	)
 	public KakaoPayReady ready(Long orderId) {
 		try {
 
@@ -50,6 +62,15 @@ public class KakaoPayApiClient {
 	/**
 	 * tid와 pgToken으로 결제 승인을 요청하고, 승인 고유 번호 aid를 반환합니다.
 	 */
+	@Retryable(
+		include = Exception.class,
+		exclude = {
+			HttpClientErrorException.BadRequest.class,
+			HttpClientErrorException.NotFound.class
+		},
+		maxAttempts = 3,
+		backoff = @Backoff(delay = 500)
+	)
 	public KakaoPayApprove approve(String tid, String pgToken) {
 		try {
 
