@@ -11,7 +11,8 @@ import ticketing.global.apiPayload.code.BaseCode;
 public enum PaymentErrorCode implements BaseCode {
 
 	PAYMENT_NOT_FOUND(HttpStatus.NOT_FOUND, "PAYMENT_404_01", "결제 준비 정보를 찾을 수 없습니다."),
-	ALREADY_PAID(HttpStatus.CONFLICT, "PAYMENT_409_01", "이미 결제가 완료된 주문입니다.");
+	ALREADY_PAID(HttpStatus.CONFLICT, "PAYMENT_409_01", "이미 결제가 완료된 주문입니다."),
+	PAYMENT_IN_PROGRESS(HttpStatus.CONFLICT, "PAYMENT_409_02", "이미 처리 중입니다.");
 
 	private final HttpStatus httpStatus;
 	private final String code;

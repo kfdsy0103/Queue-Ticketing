@@ -10,7 +10,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ticketing.domain.payment.dto.ApproveDTO;
 import ticketing.domain.payment.dto.ReadyDTO;
-import ticketing.domain.payment.service.PaymentService;
+import ticketing.domain.payment.service.PaymentFacadeService;
 import ticketing.global.apiPayload.CommonResponse;
 import ticketing.global.apiPayload.code.GeneralSuccessCode;
 
@@ -20,7 +20,7 @@ import ticketing.global.apiPayload.code.GeneralSuccessCode;
 @RequiredArgsConstructor
 public class PaymentController {
 
-	private final PaymentService paymentService;
+	private final PaymentFacadeService paymentFacadeService;
 
 	/**
 	 * 결제 정보를 생성합니다.
@@ -31,7 +31,7 @@ public class PaymentController {
 	@PostMapping("/ready")
 	public CommonResponse<ReadyDTO.Response> ready(@RequestBody @Valid ReadyDTO.Request request) {
 		log.info("[PaymentController] ready() 호출 - userId: {}", request.getUserId());
-		ReadyDTO.Result result = paymentService.ready(request.toCommand());
+		ReadyDTO.Result result = paymentFacadeService.ready(request.toCommand());
 		return CommonResponse.onSuccess(GeneralSuccessCode.CREATED, result.toResponse());
 	}
 
@@ -42,7 +42,7 @@ public class PaymentController {
 	@PostMapping("/approve")
 	public CommonResponse<ApproveDTO.Response> approve(@RequestBody @Valid ApproveDTO.Request request) {
 		log.info("[PaymentController] approve() 호출 - orderId: {}", request.getOrderId());
-		ApproveDTO.Result result = paymentService.approve(request.toCommand());
+		ApproveDTO.Result result = paymentFacadeService.approve(request.toCommand());
 		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
 	}
 }
