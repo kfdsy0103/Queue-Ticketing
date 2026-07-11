@@ -40,6 +40,12 @@ dependencies {
 	runtimeOnly 'io.jsonwebtoken:jjwt-impl:0.12.6'
 	runtimeOnly 'io.jsonwebtoken:jjwt-jackson:0.12.6'
 
+	// Retry
+	implementation 'org.springframework.retry:spring-retry'
+
+	// AOP
+	implementation 'org.springframework.boot:spring-boot-starter-aop'
+
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testRuntimeOnly 'com.h2database:h2' // h2 DB
 	testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
