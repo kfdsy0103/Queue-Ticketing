@@ -1,5 +1,7 @@
 package ticketing.domain.payment.service;
 
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -8,6 +10,8 @@ import lombok.extern.slf4j.Slf4j;
 import ticketing.domain.order.order.entity.Order;
 import ticketing.domain.order.order.exception.OrderErrorCode;
 import ticketing.domain.order.order.repository.OrderRepository;
+import ticketing.domain.order.orderitem.entity.OrderItem;
+import ticketing.domain.order.orderitem.repository.OrderItemRepository;
 import ticketing.domain.payment.client.KakaoPayApiClient;
 import ticketing.domain.payment.client.dto.KakaoPayApprove;
 import ticketing.domain.payment.client.dto.KakaoPayReady;
@@ -25,6 +29,7 @@ import ticketing.global.apiPayload.exception.GeneralException;
 public class PaymentService {
 
 	private final OrderRepository orderRepository;
+	private final OrderItemRepository orderItemRepository;
 	private final PaymentRepository paymentRepository;
 	private final KakaoPayApiClient kakaoPayApiClient;
 
@@ -75,7 +80,7 @@ public class PaymentService {
 			throw new GeneralException(GeneralErrorCode.FORBIDDEN);
 		}
 
-		// 해당 orderId 건은 이미 결제 된 상태 (todo: 바깥에 멱등 처리 필요)
+		// 해당 orderId 건은 이미 결제 된 상태
 		if (order.getOrderStatus() == Order.OrderStatus.COMPLETED) {
 			throw new GeneralException(PaymentErrorCode.ALREADY_PAID);
 		}
@@ -84,11 +89,15 @@ public class PaymentService {
 		Payment payment = paymentRepository.findByOrderId(order.getId())
 			.orElseThrow(() -> new GeneralException(PaymentErrorCode.PAYMENT_NOT_FOUND));
 
-		// Kakao pay 결제 처리 (이 단계에서 출금)
+		// Kakao pay 결제 처리 (이 단계에서 출금) - 외부 API 호출
 		KakaoPayApprove kakaoPayApproveResult = kakaoPayApiClient.approve(payment.getTid(), command.getPgToken());
 
 		// Order 건 COMPLETED 처리 (변경 감지)
 		order.complete();
+
+		// 결제 완료된 주문에 속한 좌석들을 SOLD 처리 (변경 감지)
+		List<OrderItem> orderItems = orderItemRepository.findAllByOrderIdWithScheduleSeat(order.getId());
+		orderItems.forEach(orderItem -> orderItem.getScheduleSeat().sell());	// Fetch join
 
 		return ApproveDTO.Result.builder()
 			.orderId(order.getId())

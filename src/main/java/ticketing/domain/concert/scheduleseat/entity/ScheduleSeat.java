@@ -16,7 +16,9 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import ticketing.domain.concert.concertschedule.entity.ConcertSchedule;
+import ticketing.domain.concert.scheduleseat.exception.ScheduleSeatErrorCode;
 import ticketing.domain.venue.seat.entity.Seat;
+import ticketing.global.apiPayload.exception.GeneralException;
 import ticketing.global.entity.BaseEntity;
 
 @Entity
@@ -46,6 +48,13 @@ public class ScheduleSeat extends BaseEntity {
         this.concertSchedule = concertSchedule;
         this.seat = seat;
         this.seatStatus = seatStatus;
+    }
+
+    public void sell() {
+        if (this.seatStatus != SeatStatus.RESERVED) {
+            throw new GeneralException(ScheduleSeatErrorCode.NOT_RESERVED_SEAT);
+        }
+        this.seatStatus = SeatStatus.SOLD;
     }
 
     public enum SeatStatus {

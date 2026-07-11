@@ -10,7 +10,8 @@ import ticketing.global.apiPayload.code.BaseCode;
 @RequiredArgsConstructor
 public enum ScheduleSeatErrorCode implements BaseCode {
 
-	SCHEDULE_SEAT_NOT_FOUND(HttpStatus.NOT_FOUND, "SCHEDULE_SEAT_404_01", "존재하지 않는 일정 좌석입니다.");
+	SCHEDULE_SEAT_NOT_FOUND(HttpStatus.NOT_FOUND, "SCHEDULE_SEAT_404_01", "존재하지 않는 일정 좌석입니다."),
+	NOT_RESERVED_SEAT(HttpStatus.CONFLICT, "SCHEDULE_SEAT_409_01", "RESERVED 상태의 좌석이 아닙니다.");
 
 	private final HttpStatus httpStatus;
 	private final String code;
