@@ -16,15 +16,17 @@ public class FindAllDTO {
 		@Getter
 		@Builder
 		public static class ConcertInfo {
-			Long id;
+			Long concertId;
 			String title;
 			String content;
+			Long venueId;
 
 			public static ConcertInfo from(Concert concert) {
 				return ConcertInfo.builder()
-					.id(concert.getId())
+					.concertId(concert.getId())
 					.title(concert.getTitle())
 					.content(concert.getContent())
+					.venueId(concert.getVenue().getId())
 					.build();
 			}
 		}

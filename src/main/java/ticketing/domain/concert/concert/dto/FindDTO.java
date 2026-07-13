@@ -15,23 +15,26 @@ public class FindDTO {
 	@Getter
 	@Builder
 	public static class Result {
-		Long id;
+		Long concertId;
 		String title;
 		String content;
+		Long venueId;
 
 		public static Result from(Concert concert) {
 			return Result.builder()
-				.id(concert.getId())
+				.concertId(concert.getId())
 				.title(concert.getTitle())
 				.content(concert.getContent())
+				.venueId(concert.getVenue().getId())
 				.build();
 		}
 
 		public Response toResponse() {
 			return Response.builder()
-				.id(id)
+				.concertId(concertId)
 				.title(title)
 				.content(content)
+				.venueId(venueId)
 				.build();
 		}
 	}
@@ -39,8 +42,9 @@ public class FindDTO {
 	@Getter
 	@Builder
 	public static class Response {
-		Long id;
+		Long concertId;
 		String title;
 		String content;
+		Long venueId;
 	}
 }

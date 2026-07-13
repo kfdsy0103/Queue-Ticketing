@@ -22,6 +22,8 @@ public class CreateDTO {
 		@NotBlank
 		String title;
 		String content;
+		@NotNull
+		Long venueId;
 		@NotEmpty
 		@Valid
 		List<ScheduleRequest> schedules;
@@ -30,6 +32,7 @@ public class CreateDTO {
 			return Command.builder()
 				.title(title)
 				.content(content)
+				.venueId(venueId)
 				.schedules(schedules.stream().map(ScheduleRequest::toCommand).toList())
 				.build();
 		}
@@ -37,8 +40,6 @@ public class CreateDTO {
 		@Getter
 		@NoArgsConstructor
 		public static class ScheduleRequest {
-			@NotNull
-			Long venueId;
 			@NotNull
 			LocalDate performanceDate;
 			@NotNull
@@ -49,7 +50,6 @@ public class CreateDTO {
 
 			public Command.ScheduleCommand toCommand() {
 				return Command.ScheduleCommand.builder()
-					.venueId(venueId)
 					.performanceDate(performanceDate)
 					.ticketOpenAt(ticketOpenAt)
 					.prices(prices.stream().map(PriceRequest::toCommand).toList())
@@ -79,12 +79,12 @@ public class CreateDTO {
 	public static class Command {
 		String title;
 		String content;
+		Long venueId;
 		List<ScheduleCommand> schedules;
 
 		@Getter
 		@Builder
 		public static class ScheduleCommand {
-			Long venueId;
 			LocalDate performanceDate;
 			LocalDateTime ticketOpenAt;
 			List<PriceCommand> prices;
@@ -101,23 +101,22 @@ public class CreateDTO {
 	@Getter
 	@Builder
 	public static class Result {
-		Long id;
+		Long concertId;
 		String title;
 		String content;
+		Long venueId;
 		List<ScheduleInfo> schedules;
 
 		@Getter
 		@Builder
 		public static class ScheduleInfo {
-			Long id;
-			Long venueId;
+			Long concertScheduleId;
 			LocalDate performanceDate;
 			LocalDateTime ticketOpenAt;
 
 			public static ScheduleInfo from(ConcertSchedule concertSchedule) {
 				return ScheduleInfo.builder()
-					.id(concertSchedule.getId())
-					.venueId(concertSchedule.getVenue().getId())
+					.concertScheduleId(concertSchedule.getId())
 					.performanceDate(concertSchedule.getPerformanceDate())
 					.ticketOpenAt(concertSchedule.getTicketOpenAt())
 					.build();
@@ -126,18 +125,20 @@ public class CreateDTO {
 
 		public static Result of(Concert concert, List<ConcertSchedule> concertSchedules) {
 			return Result.builder()
-				.id(concert.getId())
+				.concertId(concert.getId())
 				.title(concert.getTitle())
 				.content(concert.getContent())
+				.venueId(concert.getVenue().getId())
 				.schedules(concertSchedules.stream().map(ScheduleInfo::from).toList())
 				.build();
 		}
 
 		public Response toResponse() {
 			return Response.builder()
-				.id(id)
+				.concertId(concertId)
 				.title(title)
 				.content(content)
+				.venueId(venueId)
 				.schedules(schedules)
 				.build();
 		}
@@ -146,9 +147,10 @@ public class CreateDTO {
 	@Getter
 	@Builder
 	public static class Response {
-		Long id;
+		Long concertId;
 		String title;
 		String content;
+		Long venueId;
 		List<Result.ScheduleInfo> schedules;
 	}
 }

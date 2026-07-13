@@ -45,26 +45,29 @@ public class ConcertService {
 
 	public CreateDTO.Result create(CreateDTO.Command command) {
 
+		// 공연장 검색
+		Venue venue = venueRepository.findById(command.getVenueId())
+			.orElseThrow(() -> new GeneralException(VenueErrorCode.VENUE_NOT_FOUND));
+
 		// 콘서트 생성
 		Concert concert = Concert.builder()
+			.venue(venue)
 			.title(command.getTitle())
 			.content(command.getContent())
 			.build();
 		concertRepository.save(concert);
+
+		// 공연장의 모든 좌석 조회 (모든 회차에서 공통으로 사용)
+		List<Seat> venueSeats = seatRepository.findAllByVenueId(venue.getId());
 
 		List<ConcertSchedule> concertSchedules = new ArrayList<>();
 
 		// 입력 인자로 받은 스케쥴 일정에 따라 콘서트 회차 생성
 		for (CreateDTO.Command.ScheduleCommand scheduleCommand : command.getSchedules()) {
 
-			// 공연장 검색
-			Venue venue = venueRepository.findById(scheduleCommand.getVenueId())
-				.orElseThrow(() -> new GeneralException(VenueErrorCode.VENUE_NOT_FOUND));
-
 			// 회차 생성
 			ConcertSchedule concertSchedule = ConcertSchedule.builder()
 				.concert(concert)
-				.venue(venue)
 				.performanceDate(scheduleCommand.getPerformanceDate())
 				.ticketOpenAt(scheduleCommand.getTicketOpenAt())
 				.build();
@@ -86,7 +89,6 @@ public class ConcertService {
 			schedulePriceRepository.saveAll(schedulePrices);
 
 			// 공연장의 모든 좌석을 해당 회차의 AVAILABLE 좌석으로 등록
-			List<Seat> venueSeats = seatRepository.findAllByVenueId(venue.getId());
 			List<ScheduleSeat> scheduleSeats = venueSeats.stream()
 				.map(seat ->
 					ScheduleSeat.builder()
