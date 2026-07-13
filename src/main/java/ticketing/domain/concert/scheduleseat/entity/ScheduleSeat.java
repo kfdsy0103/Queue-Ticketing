@@ -44,22 +44,22 @@ public class ScheduleSeat extends BaseEntity {
     @Enumerated(EnumType.STRING)
     private SeatStatus seatStatus;
 
-    public void update(ConcertSchedule concertSchedule, Seat seat, SeatStatus seatStatus) {
-        this.concertSchedule = concertSchedule;
-        this.seat = seat;
-        this.seatStatus = seatStatus;
-    }
-
     public void sell() {
-        if (this.seatStatus != SeatStatus.RESERVED) {
-            throw new GeneralException(ScheduleSeatErrorCode.NOT_RESERVED_SEAT);
+        if (this.seatStatus != SeatStatus.AVAILABLE) {
+            throw new GeneralException(ScheduleSeatErrorCode.NOT_AVAILABLE_SEAT);
         }
         this.seatStatus = SeatStatus.SOLD;
     }
 
+    public void cancel() {
+        if (this.seatStatus != SeatStatus.SOLD) {
+            throw new GeneralException(ScheduleSeatErrorCode.NOT_SOLD_SEAT);
+        }
+        this.seatStatus = SeatStatus.AVAILABLE;
+    }
+
     public enum SeatStatus {
         AVAILABLE,
-        RESERVED,
         SOLD
     }
 }

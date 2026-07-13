@@ -1,19 +1,19 @@
 package ticketing.domain.concert.scheduleseat.controller;
 
-import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import ticketing.domain.concert.scheduleseat.dto.CreateDTO;
-import ticketing.domain.concert.scheduleseat.dto.UpdateDTO;
+import ticketing.domain.concert.scheduleseat.dto.FindAllDTO;
+import ticketing.domain.concert.scheduleseat.dto.FindDTO;
+import ticketing.domain.concert.scheduleseat.dto.OccupyDTO;
 import ticketing.domain.concert.scheduleseat.service.ScheduleSeatService;
 import ticketing.global.apiPayload.CommonResponse;
 import ticketing.global.apiPayload.code.GeneralSuccessCode;
@@ -26,36 +26,28 @@ public class ScheduleSeatController {
 
 	private final ScheduleSeatService scheduleSeatService;
 
-	@PostMapping
-	public CommonResponse<?> create(@Valid @RequestBody CreateDTO.Request request) {
-		log.info("[ScheduleSeatController] create() 호출");
-		CreateDTO.Response response = scheduleSeatService.create(request.toCommand());
-		return CommonResponse.onSuccess(GeneralSuccessCode.CREATED, response);
+	/**
+	 * 여러 좌석을 5분간 선점(점유)합니다. Redis Lua 스크립트로 all-or-nothing 처리되어,
+	 * 다른 사용자가 점유한 좌석이 하나라도 포함되어 있으면 전체 실패합니다.
+	 */
+	@PostMapping("/occupy")
+	public CommonResponse<OccupyDTO.Response> occupy(@Valid @RequestBody OccupyDTO.Request request, @RequestParam Long userId) {
+		log.info("[ScheduleSeatController] occupy() 호출 - userId: {}, scheduleSeatIds: {}", userId, request.getScheduleSeatIds());
+		OccupyDTO.Result result = scheduleSeatService.occupy(request.toCommand(userId));
+		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
 	}
 
-	@GetMapping("/{id}")
-	public CommonResponse<?> getById(@PathVariable Long id) {
-		log.info("[ScheduleSeatController] getById() 호출 - id: {}", id);
-		return CommonResponse.onSuccess(GeneralSuccessCode.OK, scheduleSeatService.getById(id));
+	@GetMapping("/{scheduleSeatId}")
+	public CommonResponse<FindDTO.Response> find(@PathVariable Long scheduleSeatId, @RequestParam Long userId) {
+		log.info("[ScheduleSeatController] find() 호출 - userId: {}, scheduleSeatId: {}", userId, scheduleSeatId);
+		FindDTO.Result result = scheduleSeatService.find(FindDTO.Command.builder().scheduleSeatId(scheduleSeatId).userId(userId).build());
+		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
 	}
 
 	@GetMapping
-	public CommonResponse<?> getAll() {
-		log.info("[ScheduleSeatController] getAll() 호출");
-		return CommonResponse.onSuccess(GeneralSuccessCode.OK, scheduleSeatService.getAll());
-	}
-
-	@PutMapping("/{id}")
-	public CommonResponse<?> update(@PathVariable Long id, @Valid @RequestBody UpdateDTO.Request request) {
-		log.info("[ScheduleSeatController] update() 호출 - id: {}", id);
-		UpdateDTO.Response response = scheduleSeatService.update(id, request.toCommand());
-		return CommonResponse.onSuccess(GeneralSuccessCode.OK, response);
-	}
-
-	@DeleteMapping("/{id}")
-	public CommonResponse<?> delete(@PathVariable Long id) {
-		log.info("[ScheduleSeatController] delete() 호출 - id: {}", id);
-		scheduleSeatService.delete(id);
-		return CommonResponse.onSuccess(GeneralSuccessCode.NO_CONTENT, null);
+	public CommonResponse<FindAllDTO.Response> findAll(@RequestParam Long userId) {
+		log.info("[ScheduleSeatController] findAll() 호출 - userId: {}", userId);
+		FindAllDTO.Result result = scheduleSeatService.findAll(FindAllDTO.Command.builder().userId(userId).build());
+		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
 	}
 }

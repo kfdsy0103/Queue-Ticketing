@@ -1,78 +1,122 @@
 package ticketing.domain.concert.scheduleseat.service;
 
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.List;
 
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import ticketing.domain.concert.concertschedule.entity.ConcertSchedule;
-import ticketing.domain.concert.concertschedule.exception.ConcertScheduleErrorCode;
-import ticketing.domain.concert.concertschedule.repository.ConcertScheduleRepository;
-import ticketing.domain.concert.scheduleseat.dto.CreateDTO;
-import ticketing.domain.concert.scheduleseat.dto.GetAllDTO;
-import ticketing.domain.concert.scheduleseat.dto.GetByIdDTO;
-import ticketing.domain.concert.scheduleseat.dto.UpdateDTO;
+import ticketing.domain.concert.scheduleseat.constants.ScheduleSeatRedisKeys;
+import ticketing.domain.concert.scheduleseat.dto.FindAllDTO;
+import ticketing.domain.concert.scheduleseat.dto.FindDTO;
+import ticketing.domain.concert.scheduleseat.dto.OccupyDTO;
 import ticketing.domain.concert.scheduleseat.entity.ScheduleSeat;
 import ticketing.domain.concert.scheduleseat.exception.ScheduleSeatErrorCode;
 import ticketing.domain.concert.scheduleseat.repository.ScheduleSeatRepository;
-import ticketing.domain.venue.seat.entity.Seat;
-import ticketing.domain.venue.seat.exception.SeatErrorCode;
-import ticketing.domain.venue.seat.repository.SeatRepository;
+import ticketing.domain.queue.constants.QueueRedisKeys;
+import ticketing.domain.queue.exception.QueueErrorCode;
 import ticketing.global.apiPayload.exception.GeneralException;
+import ticketing.global.util.RedisUtil;
 
 @Slf4j
 @Service
 @RequiredArgsConstructor
 public class ScheduleSeatService {
 
+	private static final Duration OCCUPY_TTL = Duration.ofMinutes(5);
+	private static final RedisScript<Long> OCCUPY_SCRIPT =
+		RedisScript.of(new ClassPathResource("luaScripts/occupy-seats.lua"), Long.class);
+	private static final RedisScript<Long> VERIFY_OCCUPY_SCRIPT =
+		RedisScript.of(new ClassPathResource("luaScripts/verify-occupy.lua"), Long.class);
+
 	private final ScheduleSeatRepository scheduleSeatRepository;
-	private final ConcertScheduleRepository concertScheduleRepository;
-	private final SeatRepository seatRepository;
+	private final RedisUtil redisUtil;
 
-	public CreateDTO.Response create(CreateDTO.Command command) {
-		ScheduleSeat scheduleSeat = ScheduleSeat.builder()
-			.concertSchedule(findConcertSchedule(command.getConcertScheduleId()))
-			.seat(findSeat(command.getSeatId()))
-			.seatStatus(command.getSeatStatus())
-			.build();
+	/**
+	 * 여러 좌석을 5분간 원자적으로 점유(선점)합니다. Lua 스크립트로 전체 좌석을 검사 후 일괄 SET하여,
+	 * 다른 사용자가 점유한 좌석이 하나라도 있으면 전체 실패(all-or-nothing) 처리합니다.
+	 */
+	public OccupyDTO.Result occupy(OccupyDTO.Command command) {
 
-		return CreateDTO.Response.from(scheduleSeatRepository.save(scheduleSeat));
-	}
+		// 점유하려는 좌석 목록 조회
+		List<ScheduleSeat> scheduleSeats = scheduleSeatRepository.findAllById(command.getScheduleSeatIds());
+		if (scheduleSeats.size() != command.getScheduleSeatIds().size()) {
+			throw new GeneralException(ScheduleSeatErrorCode.SCHEDULE_SEAT_NOT_FOUND);
+		}
 
-	public GetByIdDTO.Response getById(Long id) {
-		return GetByIdDTO.Response.from(findScheduleSeat(id));
-	}
+		// 유저가 해당 회차의 대기열을 통과(Active)했는지 확인
+		Long concertScheduleId = scheduleSeats.getFirst().getConcertSchedule().getId();
+		String activeKey = QueueRedisKeys.activeKey(concertScheduleId);
+		if (!redisUtil.hHasKey(activeKey, command.getUserId().toString())) {
+			throw new GeneralException(QueueErrorCode.NOT_ACTIVE);
+		}
 
-	public List<GetAllDTO.Response> getAll() {
-		return scheduleSeatRepository.findAll().stream()
-			.map(GetAllDTO.Response::from)
+		List<String> occupyKeys = command.getScheduleSeatIds().stream()
+			.map(ScheduleSeatRedisKeys::occupyKey)
 			.toList();
+
+		Long occupied = redisUtil.execute(
+			OCCUPY_SCRIPT,
+			occupyKeys,						// 점유하려는 좌석
+			command.getUserId().toString(),	// 점유자 userId
+			OCCUPY_TTL.toSeconds()
+		);
+
+		// 하나라도 점유되어있는 경우
+		if (occupied == null || occupied != 1L) {
+			throw new GeneralException(ScheduleSeatErrorCode.ALREADY_OCCUPIED);
+		}
+
+		return OccupyDTO.Result.builder()
+			.scheduleSeatIds(command.getScheduleSeatIds())
+			.expiresAt(LocalDateTime.now().plus(OCCUPY_TTL))
+			.build();
 	}
 
-	public UpdateDTO.Response update(Long id, UpdateDTO.Command command) {
-		ScheduleSeat scheduleSeat = findScheduleSeat(id);
-		scheduleSeat.update(findConcertSchedule(command.getConcertScheduleId()), findSeat(command.getSeatId()), command.getSeatStatus());
-
-		return UpdateDTO.Response.from(scheduleSeatRepository.save(scheduleSeat));
-	}
-
-	public void delete(Long id) {
-		scheduleSeatRepository.delete(findScheduleSeat(id));
-	}
-
-	private ScheduleSeat findScheduleSeat(Long id) {
-		return scheduleSeatRepository.findById(id)
+	public FindDTO.Result find(FindDTO.Command command) {
+		ScheduleSeat scheduleSeat = scheduleSeatRepository.findById(command.getScheduleSeatId())
 			.orElseThrow(() -> new GeneralException(ScheduleSeatErrorCode.SCHEDULE_SEAT_NOT_FOUND));
+
+		Long occupiedByMe = redisUtil.execute(
+			VERIFY_OCCUPY_SCRIPT,
+			List.of(ScheduleSeatRedisKeys.occupyKey(scheduleSeat.getId())),
+			command.getUserId().toString()
+		);
+
+		return FindDTO.Result.builder()
+			.scheduleSeatId(scheduleSeat.getId())
+			.concertScheduleId(scheduleSeat.getConcertSchedule().getId())
+			.seatId(scheduleSeat.getSeat().getId())
+			.seatStatus(scheduleSeat.getSeatStatus())
+			.occupiedByMe(occupiedByMe != null && occupiedByMe == 1L)
+			.build();
 	}
 
-	private ConcertSchedule findConcertSchedule(Long id) {
-		return concertScheduleRepository.findById(id)
-			.orElseThrow(() -> new GeneralException(ConcertScheduleErrorCode.CONCERT_SCHEDULE_NOT_FOUND));
-	}
+	public FindAllDTO.Result findAll(FindAllDTO.Command command) {
+		List<FindDTO.Result> scheduleSeats = scheduleSeatRepository.findAll().stream()
+			.map(scheduleSeat -> {
+				Long occupiedByMe = redisUtil.execute(
+					VERIFY_OCCUPY_SCRIPT,
+					List.of(ScheduleSeatRedisKeys.occupyKey(scheduleSeat.getId())),
+					command.getUserId().toString()
+				);
 
-	private Seat findSeat(Long id) {
-		return seatRepository.findById(id)
-			.orElseThrow(() -> new GeneralException(SeatErrorCode.SEAT_NOT_FOUND));
+				return FindDTO.Result.builder()
+					.scheduleSeatId(scheduleSeat.getId())
+					.concertScheduleId(scheduleSeat.getConcertSchedule().getId())
+					.seatId(scheduleSeat.getSeat().getId())
+					.seatStatus(scheduleSeat.getSeatStatus())
+					.occupiedByMe(occupiedByMe != null && occupiedByMe == 1L)
+					.build();
+			})
+			.toList();
+
+		return FindAllDTO.Result.builder()
+			.scheduleSeats(scheduleSeats)
+			.build();
 	}
 }
