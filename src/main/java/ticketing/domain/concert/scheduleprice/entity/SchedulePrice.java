@@ -39,10 +39,4 @@ public class SchedulePrice extends BaseEntity {
     private SeatGrade seatGrade;
 
     private int price;
-
-    public void update(ConcertSchedule concertSchedule, SeatGrade seatGrade, int price) {
-        this.concertSchedule = concertSchedule;
-        this.seatGrade = seatGrade;
-        this.price = price;
-    }
 }
