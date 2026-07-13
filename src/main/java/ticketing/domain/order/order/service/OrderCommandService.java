@@ -17,6 +17,7 @@ import ticketing.domain.concert.scheduleseat.constants.ScheduleSeatRedisKeys;
 import ticketing.domain.concert.scheduleseat.entity.ScheduleSeat;
 import ticketing.domain.concert.scheduleseat.exception.ScheduleSeatErrorCode;
 import ticketing.domain.concert.scheduleseat.repository.ScheduleSeatRepository;
+import ticketing.domain.order.order.dto.CancelDTO;
 import ticketing.domain.order.order.dto.ConfirmDTO;
 import ticketing.domain.order.order.dto.CreateDTO;
 import ticketing.domain.order.order.entity.Order;
@@ -213,6 +214,38 @@ public class OrderCommandService {
 			.paymentMethodType(kakaoPayApproveResponseResult.getPaymentMethodType())
 			.amount(kakaoPayApproveResponseResult.getAmount())
 			.approvedAt(kakaoPayApproveResponseResult.getApprovedAt())
+			.build();
+	}
+
+	public CancelDTO.Result cancel(CancelDTO.Command command) {
+		Order order = orderRepository.findById(command.getOrderId())
+			.orElseThrow(() -> new GeneralException(OrderErrorCode.ORDER_NOT_FOUND));
+
+		// 주문 소유자와 요청자 일치 검사
+		if (!order.getUser().getId().equals(command.getUserId())) {
+			throw new GeneralException(GeneralErrorCode.FORBIDDEN);
+		}
+
+		// 결제 완료된 주문만 전체 취소 가능
+		if (order.getOrderStatus() != Order.OrderStatus.COMPLETED) {
+			throw new GeneralException(OrderErrorCode.ORDER_NOT_COMPLETED);
+		}
+
+		Payment payment = paymentRepository.findByOrderId(order.getId())
+			.orElseThrow(() -> new GeneralException(PaymentErrorCode.PAYMENT_NOT_FOUND));
+
+		// 카카오페이 전체 취소(잔여 결제 금액 기준) - 외부 API 호출
+		kakaoPayApiClient.cancel(payment.getTid(), order.getTotalPrice());
+
+		// 남은 모든 주문 항목의 좌석을 AVAILABLE로 되돌리고 항목 삭제
+		List<OrderItem> orderItems = orderItemRepository.findAllByOrderIdWithScheduleSeat(order.getId());
+		orderItems.forEach(orderItem -> orderItem.getScheduleSeat().cancel());
+		orderItemRepository.deleteAll(orderItems);
+
+		order.cancel();
+
+		return CancelDTO.Result.builder()
+			.orderId(order.getId())
 			.build();
 	}
 }

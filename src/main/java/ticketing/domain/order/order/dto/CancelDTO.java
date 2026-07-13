@@ -1,0 +1,32 @@
+package ticketing.domain.order.order.dto;
+
+import lombok.Builder;
+import lombok.Getter;
+
+public class CancelDTO {
+
+	@Getter
+	@Builder
+	public static class Command {
+		Long orderId;
+		Long userId;
+	}
+
+	@Getter
+	@Builder
+	public static class Result {
+		Long orderId;
+
+		public Response toResponse() {
+			return Response.builder()
+				.orderId(orderId)
+				.build();
+		}
+	}
+
+	@Getter
+	@Builder
+	public static class Response {
+		Long orderId;
+	}
+}

@@ -11,8 +11,11 @@ import ticketing.global.apiPayload.code.BaseCode;
 public enum OrderErrorCode implements BaseCode {
 
 	ORDER_NOT_FOUND(HttpStatus.NOT_FOUND, "ORDER_404_01", "존재하지 않는 주문입니다."),
+	ORDER_ITEM_NOT_FOUND(HttpStatus.NOT_FOUND, "ORDER_ITEM_404_01", "존재하지 않는 주문 항목입니다."),
 	NOT_PENDING_ORDER(HttpStatus.CONFLICT, "ORDER_409_01", "PENDING 상태의 주문이 아닙니다."),
-	ORDER_IN_PROGRESS(HttpStatus.CONFLICT, "ORDER_409_02", "이미 처리 중입니다.");
+	ORDER_IN_PROGRESS(HttpStatus.CONFLICT, "ORDER_409_02", "이미 처리 중입니다."),
+	ORDER_NOT_COMPLETED(HttpStatus.CONFLICT, "ORDER_409_03", "결제 완료된 주문만 취소할 수 있습니다."),
+	ALREADY_CANCELLED_ORDER(HttpStatus.CONFLICT, "ORDER_409_04", "이미 취소된 주문입니다.");
 
 	private final HttpStatus httpStatus;
 	private final String code;

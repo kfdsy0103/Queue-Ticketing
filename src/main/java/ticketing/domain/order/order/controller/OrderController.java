@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import ticketing.domain.order.order.dto.CancelDTO;
 import ticketing.domain.order.order.dto.ConfirmDTO;
 import ticketing.domain.order.order.dto.CreateDTO;
 import ticketing.domain.order.order.dto.FindDTO;
@@ -60,6 +61,21 @@ public class OrderController {
 	public CommonResponse<FindDTO.Response> find(@Valid @RequestBody FindDTO.Request request, @RequestParam Long userId) {
 		log.info("[OrderController] find() 호출 - userId: {}, orderId: {}", userId, request.getOrderId());
 		FindDTO.Result result = orderQueryService.find(request.toCommand(userId));
+		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
+	}
+
+	/**
+	 * 주문 전체 취소입니다.
+	 * 결제 완료된 주문에 속한 모든 좌석을 취소하며, PG 전체 환불과 좌석 상태 복구가 함께 처리됩니다.
+	 */
+	@DeleteMapping("/{orderId}/cancel-all")
+	public CommonResponse<CancelDTO.Response> cancel(@PathVariable Long orderId, @RequestParam Long userId) {
+		log.info("[OrderController] cancel() 호출 - userId: {}, orderId: {}", orderId, userId);
+		CancelDTO.Command command = CancelDTO.Command.builder()
+			.orderId(orderId)
+			.userId(userId)
+			.build();
+		CancelDTO.Result result = orderCommandService.cancel(command);
 		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
 	}
 }

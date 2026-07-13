@@ -49,10 +49,14 @@ public class Order extends BaseEntity {
     }
 
     public void cancel() {
-        if (this.orderStatus != OrderStatus.PENDING) {
-            throw new GeneralException(OrderErrorCode.NOT_PENDING_ORDER);
+        if (this.orderStatus == OrderStatus.CANCELLED) {
+            throw new GeneralException(OrderErrorCode.ALREADY_CANCELLED_ORDER);
         }
         this.orderStatus = OrderStatus.CANCELLED;
+    }
+
+    public void subtractPrice(int price) {
+        this.totalPrice -= price;
     }
 
     public enum OrderStatus {

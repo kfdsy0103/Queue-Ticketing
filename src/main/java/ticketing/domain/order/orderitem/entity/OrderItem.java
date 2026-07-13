@@ -39,10 +39,4 @@ public class OrderItem extends BaseEntity {
     private ScheduleSeat scheduleSeat;
 
     private int price;
-
-    public void update(Order order, ScheduleSeat scheduleSeat, int price) {
-        this.order = order;
-        this.scheduleSeat = scheduleSeat;
-        this.price = price;
-    }
 }
