@@ -9,7 +9,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 
 import lombok.extern.slf4j.Slf4j;
+import ticketing.domain.payment.client.dto.KakaoPayApproveRequest;
 import ticketing.domain.payment.client.dto.KakaoPayApproveResponse;
+import ticketing.domain.payment.client.dto.KakaoPayReadyRequest;
 import ticketing.domain.payment.client.dto.KakaoPayReadyResponse;
 import ticketing.global.apiPayload.code.GeneralErrorCode;
 import ticketing.global.apiPayload.exception.GeneralException;
@@ -35,7 +37,7 @@ public class KakaoPayApiClient {
 		maxAttempts = 3,
 		backoff = @Backoff(delay = 500)
 	)
-	public KakaoPayReadyResponse ready(Long orderId) {
+	public KakaoPayReadyResponse ready(KakaoPayReadyRequest request) {
 		try {
 
 			// 여기서 파라미터 세팅...
@@ -72,12 +74,13 @@ public class KakaoPayApiClient {
 		maxAttempts = 3,
 		backoff = @Backoff(delay = 500)
 	)
-	public KakaoPayApproveResponse approve(String tid, String pgToken, int amount) {
+	public KakaoPayApproveResponse approve(KakaoPayApproveRequest request) {
 		try {
 
 			// approve API 호출 도 0.5초가 걸린다고 가정
 			Thread.sleep(500);
 
+			String tid = request.getTid();
 			String aid = "aid_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
 			log.info("PG 결제 승인 완료. (출금 완료) tid={}, aid={}", tid, aid);
 
@@ -85,7 +88,7 @@ public class KakaoPayApiClient {
 				.aid(aid)
 				.tid(tid)
 				.paymentMethodType("MONEY")
-				.amount(amount)
+				.amount(request.getAmount())
 				.approvedAt(LocalDateTime.now())
 				.build();
 		} catch (InterruptedException e) {

@@ -25,7 +25,9 @@ import ticketing.domain.order.order.repository.OrderRepository;
 import ticketing.domain.order.orderitem.entity.OrderItem;
 import ticketing.domain.order.orderitem.repository.OrderItemRepository;
 import ticketing.domain.payment.client.KakaoPayApiClient;
+import ticketing.domain.payment.client.dto.KakaoPayApproveRequest;
 import ticketing.domain.payment.client.dto.KakaoPayApproveResponse;
+import ticketing.domain.payment.client.dto.KakaoPayReadyRequest;
 import ticketing.domain.payment.client.dto.KakaoPayReadyResponse;
 import ticketing.domain.payment.entity.Payment;
 import ticketing.domain.payment.exception.PaymentErrorCode;
@@ -112,8 +114,10 @@ public class OrderCommandService {
 		orderItemRepository.saveAll(orderItems);
 
 		// 카카오페이 결제 준비 (tid 발급 및 리다이렉트 경로 획득)
-		// todo: KakaoPayReadyRequest를 생성해서 넘기기
-		KakaoPayReadyResponse kakaoPayReadyResponseResult = kakaoPayApiClient.ready(order.getId());
+		KakaoPayReadyRequest kakaoPayReadyRequest = KakaoPayReadyRequest.builder()
+			.orderId(order.getId())
+			.build();
+		KakaoPayReadyResponse kakaoPayReadyResponseResult = kakaoPayApiClient.ready(kakaoPayReadyRequest);
 
 		// 결제 관련 정보 엔티티 저장
 		Payment payment = Payment.builder()
@@ -174,8 +178,12 @@ public class OrderCommandService {
 		}
 
 		// 카카오페이 결제 승인 (이 단계에서 실제 출금) - 외부 API 호출
-		// todo: KakaoPayApproveRequest를 생성해서 넘기기
-		KakaoPayApproveResponse kakaoPayApproveResponseResult = kakaoPayApiClient.approve(payment.getTid(), command.getPgToken(), payment.getTotalPrice());
+		KakaoPayApproveRequest kakaoPayApproveRequest = KakaoPayApproveRequest.builder()
+			.tid(payment.getTid())
+			.pgToken(command.getPgToken())
+			.amount(payment.getTotalPrice())
+			.build();
+		KakaoPayApproveResponse kakaoPayApproveResponseResult = kakaoPayApiClient.approve(kakaoPayApproveRequest);
 
 		// 출금 이후의 내부 처리는 실패 시 보상 트랜잭션(결제 취소)이 필요하므로 별도로 묶어 처리
 		try {
