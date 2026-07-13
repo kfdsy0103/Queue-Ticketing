@@ -20,7 +20,6 @@ public class FindAllDTO {
 		public static class ConcertScheduleInfo {
 			Long concertScheduleId;
 			Long concertId;
-			Long venueId;
 			LocalDate performanceDate;
 			LocalDateTime ticketOpenAt;
 
@@ -28,7 +27,6 @@ public class FindAllDTO {
 				return ConcertScheduleInfo.builder()
 					.concertScheduleId(concertSchedule.getId())
 					.concertId(concertSchedule.getConcert().getId())
-					.venueId(concertSchedule.getVenue().getId())
 					.performanceDate(concertSchedule.getPerformanceDate())
 					.ticketOpenAt(concertSchedule.getTicketOpenAt())
 					.build();

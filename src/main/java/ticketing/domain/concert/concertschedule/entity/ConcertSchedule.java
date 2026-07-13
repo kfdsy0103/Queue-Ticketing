@@ -17,7 +17,6 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import ticketing.domain.concert.concert.entity.Concert;
-import ticketing.domain.venue.venue.entity.Venue;
 import ticketing.global.entity.BaseEntity;
 
 @Entity
@@ -35,10 +34,6 @@ public class ConcertSchedule extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "concert_id")
     private Concert concert;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "venue_id")
-    private Venue venue;
 
     private LocalDate performanceDate;
 

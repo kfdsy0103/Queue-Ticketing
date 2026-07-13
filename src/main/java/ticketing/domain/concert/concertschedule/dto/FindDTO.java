@@ -20,7 +20,6 @@ public class FindDTO {
 	public static class Result {
 		Long concertScheduleId;
 		Long concertId;
-		Long venueId;
 		LocalDate performanceDate;
 		LocalDateTime ticketOpenAt;
 
@@ -28,7 +27,6 @@ public class FindDTO {
 			return Result.builder()
 				.concertScheduleId(concertSchedule.getId())
 				.concertId(concertSchedule.getConcert().getId())
-				.venueId(concertSchedule.getVenue().getId())
 				.performanceDate(concertSchedule.getPerformanceDate())
 				.ticketOpenAt(concertSchedule.getTicketOpenAt())
 				.build();
@@ -38,7 +36,6 @@ public class FindDTO {
 			return Response.builder()
 				.concertScheduleId(concertScheduleId)
 				.concertId(concertId)
-				.venueId(venueId)
 				.performanceDate(performanceDate)
 				.ticketOpenAt(ticketOpenAt)
 				.build();
@@ -50,7 +47,6 @@ public class FindDTO {
 	public static class Response {
 		Long concertScheduleId;
 		Long concertId;
-		Long venueId;
 		LocalDate performanceDate;
 		LocalDateTime ticketOpenAt;
 	}

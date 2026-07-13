@@ -15,19 +15,19 @@ public class FindDTO {
 	@Getter
 	@Builder
 	public static class Result {
-		Long id;
+		Long venueId;
 		String name;
 
 		public static Result from(Venue venue) {
 			return Result.builder()
-				.id(venue.getId())
+				.venueId(venue.getId())
 				.name(venue.getName())
 				.build();
 		}
 
 		public Response toResponse() {
 			return Response.builder()
-				.id(id)
+				.venueId(venueId)
 				.name(name)
 				.build();
 		}
@@ -36,7 +36,7 @@ public class FindDTO {
 	@Getter
 	@Builder
 	public static class Response {
-		Long id;
+		Long venueId;
 		String name;
 	}
 }

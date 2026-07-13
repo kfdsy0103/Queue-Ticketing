@@ -16,14 +16,14 @@ public class FindAllDTO {
 		@Getter
 		@Builder
 		public static class SeatInfo {
-			Long id;
+			Long seatId;
 			Long venueId;
 			Long seatGradeId;
 			String seatNumber;
 
 			public static SeatInfo from(Seat seat) {
 				return SeatInfo.builder()
-					.id(seat.getId())
+					.seatId(seat.getId())
 					.venueId(seat.getVenue().getId())
 					.seatGradeId(seat.getSeatGrade().getId())
 					.seatNumber(seat.getSeatNumber())

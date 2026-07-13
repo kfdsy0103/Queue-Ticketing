@@ -16,12 +16,12 @@ public class FindAllDTO {
 		@Getter
 		@Builder
 		public static class VenueInfo {
-			Long id;
+			Long venueId;
 			String name;
 
 			public static VenueInfo from(Venue venue) {
 				return VenueInfo.builder()
-					.id(venue.getId())
+					.venueId(venue.getId())
 					.name(venue.getName())
 					.build();
 			}
