@@ -1,30 +1,15 @@
 package ticketing.domain.venue.seatgrade.dto;
 
-import jakarta.validation.constraints.NotBlank;
 import lombok.Builder;
 import lombok.Getter;
-import lombok.NoArgsConstructor;
 import ticketing.domain.venue.seatgrade.entity.SeatGrade;
 
-public class CreateDTO {
-
-	@Getter
-	@NoArgsConstructor
-	public static class Request {
-		@NotBlank
-		String name;
-
-		public Command toCommand() {
-			return Command.builder()
-				.name(name)
-				.build();
-		}
-	}
+public class FindDTO {
 
 	@Getter
 	@Builder
 	public static class Command {
-		String name;
+		Long seatGradeId;
 	}
 
 	@Getter
