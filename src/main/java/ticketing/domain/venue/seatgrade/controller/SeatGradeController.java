@@ -2,19 +2,14 @@ package ticketing.domain.venue.seatgrade.controller;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import ticketing.domain.venue.seatgrade.dto.CreateDTO;
 import ticketing.domain.venue.seatgrade.dto.FindAllDTO;
 import ticketing.domain.venue.seatgrade.dto.FindDTO;
-import ticketing.domain.venue.seatgrade.service.SeatGradeCommandService;
 import ticketing.domain.venue.seatgrade.service.SeatGradeQueryService;
 import ticketing.global.apiPayload.CommonResponse;
 import ticketing.global.apiPayload.code.GeneralSuccessCode;
@@ -25,15 +20,7 @@ import ticketing.global.apiPayload.code.GeneralSuccessCode;
 @RequiredArgsConstructor
 public class SeatGradeController {
 
-	private final SeatGradeCommandService seatGradeCommandService;
 	private final SeatGradeQueryService seatGradeQueryService;
-
-	@PostMapping
-	public CommonResponse<CreateDTO.Response> create(@Valid @RequestBody CreateDTO.Request request) {
-		log.info("[SeatGradeController] create() 호출");
-		CreateDTO.Result result = seatGradeCommandService.create(request.toCommand());
-		return CommonResponse.onSuccess(GeneralSuccessCode.CREATED, result.toResponse());
-	}
 
 	@GetMapping("/{seatGradeId}")
 	public CommonResponse<FindDTO.Response> find(@PathVariable Long seatGradeId, @RequestParam Long userId) {
