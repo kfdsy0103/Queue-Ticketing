@@ -1,29 +1,25 @@
 package ticketing.domain.order.order.dto;
 
-import java.util.List;
+import java.time.LocalDateTime;
 
-import jakarta.validation.constraints.NotEmpty;
 import jakarta.validation.constraints.NotNull;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import ticketing.domain.payment.entity.Payment;
 
-public class CreateDTO {
+public class ConfirmDTO {
 
 	@Getter
 	@NoArgsConstructor
 	public static class Request {
-		@NotEmpty
-		List<Long> scheduleSeatIds;
 		@NotNull
-		Payment.PaymentMethod paymentMethod;
+		String pgToken;
 
-		public Command toCommand(Long userId) {
+		public ConfirmDTO.Command toCommand(Long userId, Long orderId) {
 			return Command.builder()
 				.userId(userId)
-				.scheduleSeatIds(scheduleSeatIds)
-				.paymentMethod(paymentMethod)
+				.orderId(orderId)
+				.pgToken(pgToken)
 				.build();
 		}
 	}
@@ -32,20 +28,28 @@ public class CreateDTO {
 	@Builder
 	public static class Command {
 		Long userId;
-		List<Long> scheduleSeatIds;
-		Payment.PaymentMethod paymentMethod;
+		Long orderId;
+		String pgToken;
 	}
 
 	@Getter
 	@Builder
 	public static class Result {
 		Long orderId;
-		String redirectUrl;
+		String tid;
+		String aid;
+		String paymentMethodType;
+		int amount;
+		LocalDateTime approvedAt;
 
 		public Response toResponse() {
 			return Response.builder()
 				.orderId(orderId)
-				.redirectUrl(redirectUrl)
+				.tid(tid)
+				.aid(aid)
+				.paymentMethodType(paymentMethodType)
+				.amount(amount)
+				.approvedAt(approvedAt)
 				.build();
 		}
 	}
@@ -54,6 +58,10 @@ public class CreateDTO {
 	@Builder
 	public static class Response {
 		Long orderId;
-		String redirectUrl;
+		String tid;
+		String aid;
+		String paymentMethodType;
+		int amount;
+		LocalDateTime approvedAt;
 	}
 }

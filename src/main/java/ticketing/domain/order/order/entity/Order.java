@@ -41,17 +41,18 @@ public class Order extends BaseEntity {
 
     private int totalPrice;
 
-    public void update(User user, OrderStatus orderStatus, int totalPrice) {
-        this.user = user;
-        this.orderStatus = orderStatus;
-        this.totalPrice = totalPrice;
-    }
-
     public void complete() {
         if (this.orderStatus != OrderStatus.PENDING) {
             throw new GeneralException(OrderErrorCode.NOT_PENDING_ORDER);
         }
         this.orderStatus = OrderStatus.COMPLETED;
+    }
+
+    public void cancel() {
+        if (this.orderStatus != OrderStatus.PENDING) {
+            throw new GeneralException(OrderErrorCode.NOT_PENDING_ORDER);
+        }
+        this.orderStatus = OrderStatus.CANCELLED;
     }
 
     public enum OrderStatus {

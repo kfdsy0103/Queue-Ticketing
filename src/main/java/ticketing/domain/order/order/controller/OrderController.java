@@ -7,14 +7,18 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import ticketing.domain.order.order.dto.ConfirmDTO;
 import ticketing.domain.order.order.dto.CreateDTO;
-import ticketing.domain.order.order.dto.UpdateDTO;
-import ticketing.domain.order.order.service.OrderService;
+import ticketing.domain.order.order.dto.FindDTO;
+import ticketing.domain.order.order.service.OrderCommandService;
+import ticketing.domain.order.order.service.OrderFacadeService;
+import ticketing.domain.order.order.service.OrderQueryService;
 import ticketing.global.apiPayload.CommonResponse;
 import ticketing.global.apiPayload.code.GeneralSuccessCode;
 
@@ -24,38 +28,38 @@ import ticketing.global.apiPayload.code.GeneralSuccessCode;
 @RequiredArgsConstructor
 public class OrderController {
 
-	private final OrderService orderService;
+	private final OrderQueryService orderQueryService;
+	private final OrderCommandService orderCommandService;
+	private final OrderFacadeService orderFacadeService;
 
+	/**
+	 * 주문 생성 단계입니다.
+	 * 주문하려는 좌석 id List + PaymentMethod(KakaoPay ...)를 인자로 받아, 주문을 생성하고 Payment Client를 호출하여 결제 정보를 생성합니다.
+	 * 응답에 포함되는 redirect_url로 프론트에서는 리다이렉트시켜 결제를 처리하면 됩니다.
+	 */
 	@PostMapping
-	public CommonResponse<?> create(@Valid @RequestBody CreateDTO.Request request) {
-		log.info("[OrderController] create() 호출");
-		CreateDTO.Response response = orderService.create(request.toCommand());
-		return CommonResponse.onSuccess(GeneralSuccessCode.CREATED, response);
+	public CommonResponse<CreateDTO.Response> create(@Valid @RequestBody CreateDTO.Request request, @RequestParam Long userId) {
+		log.info("[OrderController] create() 호출 - userId: {}, scheduleSeatIds: {}", userId, request.getScheduleSeatIds());
+		CreateDTO.Result result = orderCommandService.create(request.toCommand(userId));
+		return CommonResponse.onSuccess(GeneralSuccessCode.CREATED, result.toResponse());
 	}
 
-	@GetMapping("/{id}")
-	public CommonResponse<?> getById(@PathVariable Long id) {
-		log.info("[OrderController] getById() 호출 - id: {}", id);
-		return CommonResponse.onSuccess(GeneralSuccessCode.OK, orderService.getById(id));
+	/**
+	 * 카카오페이 결제 승인 콜백을 받아 주문을 확정합니다.
+	 * approval_url을 프론트 쪽으로 설정하여, 한번 경유한 뒤 우리 백엔드로 POST 요청을 보내는 상황을 가정.
+	 */
+	@PostMapping("/{orderId}/confirm")
+	public CommonResponse<ConfirmDTO.Response> confirm(@PathVariable Long orderId, @RequestParam Long userId,
+		@Valid @RequestBody ConfirmDTO.Request request) {
+		log.info("[OrderController] confirm() 호출 - userId: {}, orderId: {}", userId, orderId);
+		ConfirmDTO.Result result = orderFacadeService.confirm(request.toCommand(userId, orderId));
+		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
 	}
 
-	@GetMapping
-	public CommonResponse<?> getAll() {
-		log.info("[OrderController] getAll() 호출");
-		return CommonResponse.onSuccess(GeneralSuccessCode.OK, orderService.getAll());
-	}
-
-	@PutMapping("/{id}")
-	public CommonResponse<?> update(@PathVariable Long id, @Valid @RequestBody UpdateDTO.Request request) {
-		log.info("[OrderController] update() 호출 - id: {}", id);
-		UpdateDTO.Response response = orderService.update(id, request.toCommand());
-		return CommonResponse.onSuccess(GeneralSuccessCode.OK, response);
-	}
-
-	@DeleteMapping("/{id}")
-	public CommonResponse<?> delete(@PathVariable Long id) {
-		log.info("[OrderController] delete() 호출 - id: {}", id);
-		orderService.delete(id);
-		return CommonResponse.onSuccess(GeneralSuccessCode.NO_CONTENT, null);
+	@GetMapping("/{orderId}")
+	public CommonResponse<FindDTO.Response> find(@Valid @RequestBody FindDTO.Request request, @RequestParam Long userId) {
+		log.info("[OrderController] find() 호출 - userId: {}, orderId: {}", userId, request.getOrderId());
+		FindDTO.Result result = orderQueryService.find(request.toCommand(userId));
+		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
 	}
 }
