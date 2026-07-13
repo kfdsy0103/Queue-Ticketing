@@ -11,12 +11,10 @@ public class StatusDTO {
 	@Getter
 	@NoArgsConstructor
 	public static class Request {
-		@NotNull
-		Long userId;
 		@NotBlank
 		String token;
 
-		public StatusDTO.Command toCommand() {
+		public StatusDTO.Command toCommand(Long userId) {
 			return StatusDTO.Command.builder()
 				.userId(userId)
 				.token(token)

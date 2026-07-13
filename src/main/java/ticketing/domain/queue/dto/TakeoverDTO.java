@@ -11,11 +11,9 @@ public class TakeoverDTO {
 	@NoArgsConstructor
 	public static class Request {
 		@NotNull
-		Long userId;
-		@NotNull
 		Long concertScheduleId;
 
-		public Command toCommand() {
+		public Command toCommand(Long userId) {
 			return Command.builder()
 				.userId(userId)
 				.concertScheduleId(concertScheduleId)
