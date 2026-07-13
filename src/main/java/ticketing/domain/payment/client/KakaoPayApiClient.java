@@ -1,5 +1,6 @@
 package ticketing.domain.payment.client;
 
+import java.time.LocalDateTime;
 import java.util.UUID;
 
 import org.springframework.retry.annotation.Backoff;
@@ -8,8 +9,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.HttpClientErrorException;
 
 import lombok.extern.slf4j.Slf4j;
-import ticketing.domain.payment.client.dto.KakaoPayApprove;
-import ticketing.domain.payment.client.dto.KakaoPayReady;
+import ticketing.domain.payment.client.dto.KakaoPayApproveResponse;
+import ticketing.domain.payment.client.dto.KakaoPayReadyResponse;
 import ticketing.global.apiPayload.code.GeneralErrorCode;
 import ticketing.global.apiPayload.exception.GeneralException;
 
@@ -34,7 +35,7 @@ public class KakaoPayApiClient {
 		maxAttempts = 3,
 		backoff = @Backoff(delay = 500)
 	)
-	public KakaoPayReady ready(Long orderId) {
+	public KakaoPayReadyResponse ready(Long orderId) {
 		try {
 
 			// 여기서 파라미터 세팅...
@@ -48,7 +49,7 @@ public class KakaoPayApiClient {
 			String redirectUrl = "https://리다이렉트_카카오페이_결제_경로?tid=" + tid;
 			log.info("PG 결제 준비 완료. tid={}", tid);
 
-			return KakaoPayReady.builder()
+			return KakaoPayReadyResponse.builder()
 				.tid(tid)
 				.redirectUrl(redirectUrl)
 				.build();
@@ -71,7 +72,7 @@ public class KakaoPayApiClient {
 		maxAttempts = 3,
 		backoff = @Backoff(delay = 500)
 	)
-	public KakaoPayApprove approve(String tid, String pgToken) {
+	public KakaoPayApproveResponse approve(String tid, String pgToken, int amount) {
 		try {
 
 			// approve API 호출 도 0.5초가 걸린다고 가정
@@ -80,12 +81,42 @@ public class KakaoPayApiClient {
 			String aid = "aid_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
 			log.info("PG 결제 승인 완료. (출금 완료) tid={}, aid={}", tid, aid);
 
-			return KakaoPayApprove.builder()
+			return KakaoPayApproveResponse.builder()
 				.aid(aid)
 				.tid(tid)
+				.paymentMethodType("MONEY")
+				.amount(amount)
+				.approvedAt(LocalDateTime.now())
 				.build();
 		} catch (InterruptedException e) {
 			log.error("PaymentClient - approve()에서 Thread.sleep() 에러 발생");
+			Thread.currentThread().interrupt();
+			throw new GeneralException(GeneralErrorCode.INTERNAL_SERVER_ERROR);
+		}
+	}
+
+	/**
+	 * tid와 금액으로 결제 취소(환불)를 요청합니다.
+	 * 결제 승인 이후 내부 처리(좌석 판매 등)가 실패했을 때 보상 트랜잭션으로 호출되어 방금 승인된 결제를 취소합니다.
+	 */
+	@Retryable(
+		include = Exception.class,
+		exclude = {
+			HttpClientErrorException.BadRequest.class,
+			HttpClientErrorException.NotFound.class
+		},
+		maxAttempts = 3,
+		backoff = @Backoff(delay = 500)
+	)
+	public void cancel(String tid, int amount) {
+		try {
+
+			// cancel API 호출도 0.5초가 걸린다고 가정
+			Thread.sleep(500);
+
+			log.info("PG 결제 취소 완료. tid={}, amount={}", tid, amount);
+		} catch (InterruptedException e) {
+			log.error("PaymentClient - cancel()에서 Thread.sleep() 에러 발생");
 			Thread.currentThread().interrupt();
 			throw new GeneralException(GeneralErrorCode.INTERNAL_SERVER_ERROR);
 		}

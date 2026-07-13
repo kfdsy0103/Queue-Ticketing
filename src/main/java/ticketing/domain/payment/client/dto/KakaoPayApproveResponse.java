@@ -7,7 +7,7 @@ import lombok.Getter;
 
 @Getter
 @Builder
-public class KakaoPayApprove {
+public class KakaoPayApproveResponse {
 	private String aid;
 	private String tid;
 	private String paymentMethodType;

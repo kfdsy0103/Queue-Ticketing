@@ -1,6 +1,10 @@
 package ticketing.domain.payment.entity;
 
+import java.time.LocalDateTime;
+
 import jakarta.persistence.Entity;
+import jakarta.persistence.EnumType;
+import jakarta.persistence.Enumerated;
 import jakarta.persistence.FetchType;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
@@ -32,6 +36,12 @@ public class Payment extends BaseEntity {
 	@JoinColumn(name = "order_id")
 	private Order order;
 
+	@Enumerated(EnumType.STRING)
+	private PaymentMethod method;
+
+	@Enumerated(EnumType.STRING)
+	private PaymentStatus status;
+
 	private String tid;
 
 	private String redirectUrl;
@@ -40,7 +50,21 @@ public class Payment extends BaseEntity {
 
 	private String aid;
 
+	private LocalDateTime approvedAt;
+
 	public void approve(String aid) {
 		this.aid = aid;
+		this.status = PaymentStatus.APPROVED;
+		this.approvedAt = LocalDateTime.now();
+	}
+
+	public enum PaymentMethod {
+		KAKAO_PAY
+	}
+
+	public enum PaymentStatus {
+		READY,
+		APPROVED,
+		CANCELLED
 	}
 }

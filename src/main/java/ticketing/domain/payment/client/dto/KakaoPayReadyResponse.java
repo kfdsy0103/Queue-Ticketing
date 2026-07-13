@@ -5,7 +5,7 @@ import lombok.Getter;
 
 @Getter
 @Builder
-public class KakaoPayReady {
+public class KakaoPayReadyResponse {
 	private String tid;
 	private String redirectUrl;
 }
