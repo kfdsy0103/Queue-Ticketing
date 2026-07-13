@@ -10,7 +10,7 @@ import ticketing.global.apiPayload.code.BaseCode;
 @RequiredArgsConstructor
 public enum SeatErrorCode implements BaseCode {
 
-	SEAT_NOT_FOUND(HttpStatus.NOT_FOUND, "SEAT_404_01", "존재하지 않는 좌석입니다.");
+	;
 
 	private final HttpStatus httpStatus;
 	private final String code;

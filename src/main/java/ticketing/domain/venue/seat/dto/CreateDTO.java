@@ -38,19 +38,37 @@ public class CreateDTO {
 
 	@Getter
 	@Builder
-	public static class Response {
+	public static class Result {
 		Long id;
 		Long venueId;
 		Long seatGradeId;
 		String seatNumber;
 
-		public static Response from(Seat seat) {
-			return Response.builder()
+		public static Result from(Seat seat) {
+			return Result.builder()
 				.id(seat.getId())
 				.venueId(seat.getVenue().getId())
 				.seatGradeId(seat.getSeatGrade().getId())
 				.seatNumber(seat.getSeatNumber())
 				.build();
 		}
+
+		public Response toResponse() {
+			return Response.builder()
+				.id(id)
+				.venueId(venueId)
+				.seatGradeId(seatGradeId)
+				.seatNumber(seatNumber)
+				.build();
+		}
+	}
+
+	@Getter
+	@Builder
+	public static class Response {
+		Long id;
+		Long venueId;
+		Long seatGradeId;
+		String seatNumber;
 	}
 }
