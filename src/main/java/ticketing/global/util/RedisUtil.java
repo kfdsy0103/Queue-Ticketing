@@ -74,6 +74,13 @@ public class RedisUtil {
 	}
 
 	/**
+	 * Hash 필드 단위로 TTL을 설정합니다. (HEXPIRE)
+	 */
+	public void hExpire(String key, String hashKey, Duration ttl) {
+		redisTemplate.opsForHash().expire(key, ttl, List.of(hashKey));
+	}
+
+	/**
 	 * Lua 스크립트를 원자적으로 실행합니다.
 	 */
 	public <T> T execute(RedisScript<T> script, List<String> keys, Object... args) {

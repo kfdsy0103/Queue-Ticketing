@@ -1,5 +1,6 @@
 package ticketing.domain.queue.service;
 
+import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 
@@ -28,7 +29,8 @@ import ticketing.global.util.RedisUtil;
 public class QueueService {
 
 	// TODO: 실제 경로로 변경
-	private static final String REDIRECT_ENDPOINT = "/api/v1/booking";
+	private static final String REDIRECT_ENDPOINT = "/frontend/booking";
+	private static final Duration SESSION_TTL = Duration.ofMinutes(3);
 
 	private final UserRepository userRepository;
 	private final RedisUtil redisUtil;
@@ -70,6 +72,7 @@ public class QueueService {
 		long score = redisUtil.increment(counterKey);
 		redisUtil.zAdd(waitingKey, user.getId(), score);
 		redisUtil.hSet(userInfoKey, user.getId().toString(), queueSessionId);	// 소유 중인 화면
+		redisUtil.hExpire(userInfoKey, user.getId().toString(), SESSION_TTL);	// TTL 설정
 
 		String token = jwtTokenUtil.generateToken(Map.of(
 			"userId", user.getId(),
@@ -102,14 +105,13 @@ public class QueueService {
 			throw new GeneralException(GeneralErrorCode.FORBIDDEN);
 		}
 
-		User user = userRepository.findById(userId)
-			.orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
+		// 기존 userRepository.find().orElseThrow 구문은 시큐리티 단에서 이미 처리되어 검증된 상태이므로, 매 폴링마다 반복할 필요 X
 
 		String waitingKey = QueueRedisKeys.waitingKey(concertScheduleId);
 		String userInfoKey = QueueRedisKeys.userInfoKey(concertScheduleId);
 		String activeKey = QueueRedisKeys.activeKey(concertScheduleId);
 
-		String storedSessionId = redisUtil.hGet(userInfoKey, user.getId().toString());
+		String storedSessionId = redisUtil.hGet(userInfoKey, userId.toString());
 		if (storedSessionId == null) {
 			throw new GeneralException(QueueErrorCode.NOT_IN_QUEUE);	// 이미 처리된 경우
 		}
@@ -117,9 +119,11 @@ public class QueueService {
 			throw new GeneralException(QueueErrorCode.SESSION_REVOKED);	// 다른 화면에서 예매를 이어받은 경우 (기존 화면은 종료)
 		}
 
+		redisUtil.hExpire(userInfoKey, userId.toString(), SESSION_TTL);	// TTL 연장 하트비트
+
 		// Active 상태인지 확인 후에 return;
-		boolean isActive = redisUtil.hHasKey(activeKey, user.getId().toString());
-		long rank = safeRank(redisUtil.zRank(waitingKey, user.getId()));
+		boolean isActive = redisUtil.hHasKey(activeKey, userId.toString());
+		long rank = safeRank(redisUtil.zRank(waitingKey, userId));
 		long pollingIntervalMs = JitterUtil.nextPollIntervalMillis(rank);
 
 		return StatusDTO.Result.builder()
@@ -152,6 +156,7 @@ public class QueueService {
 		// 기존 화면 종료를 위한 queueSessionId 갱신 (순번/활성 상태는 그대로 유지)
 		String queueSessionId = UUID.randomUUID().toString();
 		redisUtil.hSet(userInfoKey, user.getId().toString(), queueSessionId);
+		redisUtil.hExpire(userInfoKey, user.getId().toString(), SESSION_TTL);	// TTL 하트비트
 
 		String token = jwtTokenUtil.generateToken(Map.of(
 			"userId", user.getId(),
@@ -181,8 +186,9 @@ public class QueueService {
 	/**
 	 * Long → long 변환 시 null로 인한 NPE를 방지합니다.
 	 * zADD 직후 곧바로 워커가 처리한 경우를 방지합니다.
+	 * rank가 0-base여서 +1
 	 */
 	private long safeRank(Long rank) {
-		return rank != null ? rank : 0L;
+		return rank != null ? rank + 1 : 0L;
 	}
 }
