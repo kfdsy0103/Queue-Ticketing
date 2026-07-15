@@ -38,7 +38,7 @@ public class QueuePromotionScheduler {
 	@Scheduled(fixedDelay = 2000)
 	public void promoteScheduler() {
 		LocalDateTime now = LocalDateTime.now();
-		log.info("[QueuePromotionScheduler] promote() 스케쥴러 동작, now: {}", now);
+		log.debug("[QueuePromotionScheduler] promote() 스케쥴러 동작, now: {}", now);
 
 		// 유효한 콘서트 회차 조회
 		List<ConcertSchedule> openSchedules = concertScheduleRepository
@@ -71,6 +71,8 @@ public class QueuePromotionScheduler {
 			ACTIVE_TTL.toSeconds()
 		);
 
-		log.info("[QueuePromotionScheduler] concertScheduleId={} 사용자 {}명 입장 처리", concertScheduleId, promotedCount);
+		if (promotedCount > 0) {
+			log.info("[QueuePromotionScheduler] concertScheduleId={} 사용자 {}명 입장 처리", concertScheduleId, promotedCount);
+		}
 	}
 }

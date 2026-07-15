@@ -76,19 +76,19 @@ public class JwtTokenUtil {
 				.getPayload();
 		}
 		catch (SecurityException | MalformedJwtException e) {
-			log.error("잘못된 JWT 서명입니다.");
+			log.error("잘못된 JWT 서명입니다.", e);
 			throw new GeneralException(GeneralErrorCode.INVALID_TOKEN);
 		}
 		catch (ExpiredJwtException e) {
-			log.warn("만료된 JWT 토큰입니다.");
+			log.warn("만료된 JWT 토큰입니다.", e);
 			throw new GeneralException(GeneralErrorCode.TOKEN_EXPIRED);
 		}
 		catch (UnsupportedJwtException e) {
-			log.error("지원되지 않는 JWT 토큰입니다.");
+			log.error("지원되지 않는 JWT 토큰입니다.", e);
 			throw new GeneralException(GeneralErrorCode.INVALID_TOKEN);
 		}
 		catch (IllegalArgumentException e) {
-			log.error("JWT 토큰이 잘못되었습니다.");
+			log.error("JWT 토큰이 잘못되었습니다.", e);
 			throw new GeneralException(GeneralErrorCode.INVALID_TOKEN);
 		}
 	}

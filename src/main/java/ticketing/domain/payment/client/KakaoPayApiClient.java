@@ -56,7 +56,7 @@ public class KakaoPayApiClient {
 				.redirectUrl(redirectUrl)
 				.build();
 		} catch (InterruptedException e) {
-			log.error("PaymentClient - ready()에서 Thread.sleep() 에러 발생");
+			log.error("PaymentClient - ready()에서 Thread.sleep() 에러 발생", e);
 			Thread.currentThread().interrupt();
 			throw new GeneralException(GeneralErrorCode.INTERNAL_SERVER_ERROR);
 		}
@@ -92,7 +92,7 @@ public class KakaoPayApiClient {
 				.approvedAt(LocalDateTime.now())
 				.build();
 		} catch (InterruptedException e) {
-			log.error("PaymentClient - approve()에서 Thread.sleep() 에러 발생");
+			log.error("PaymentClient - approve()에서 Thread.sleep() 에러 발생", e);
 			Thread.currentThread().interrupt();
 			throw new GeneralException(GeneralErrorCode.INTERNAL_SERVER_ERROR);
 		}
@@ -119,7 +119,7 @@ public class KakaoPayApiClient {
 
 			log.info("PG 결제 취소 완료. tid={}, amount={}", tid, amount);
 		} catch (InterruptedException e) {
-			log.error("PaymentClient - cancel()에서 Thread.sleep() 에러 발생");
+			log.error("PaymentClient - cancel()에서 Thread.sleep() 에러 발생", e);
 			Thread.currentThread().interrupt();
 			throw new GeneralException(GeneralErrorCode.INTERNAL_SERVER_ERROR);
 		}
