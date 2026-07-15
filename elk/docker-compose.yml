@@ -20,3 +20,13 @@ services:
       - "5044:5044"
     depends_on:
       - elasticsearch
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:9.1.0 # ES, Logstash와 버전 맞추기
+    container_name: kibana
+    ports:
+      - "5601:5601"
+    environment:
+      - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      - elasticsearch
