@@ -6,8 +6,8 @@ services:
     ports:
       - "9090:9090"
     volumes:
-      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro # bind (설정파일은 ro)
-      - ./monitoring/prometheus/rules:/etc/prometheus/rules:ro # 알람 규칙 (설정파일은 ro)
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro # bind (설정파일은 ro)
+      - ./prometheus/rules:/etc/prometheus/rules:ro # 알람 규칙 (설정파일은 ro)
       # - ./monitoring/data/prometheus:/prometheus # prometheus가 메트릭 저장 경로 TSDB (나중에 과거 메트릭도 확인하려면 주석 해제. 여기서는 필요 X)
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"  # config 파일 경로
@@ -19,6 +19,24 @@ services:
     networks:
       - monitoring
     restart: unless-stopped
+
+  # Grafana
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning # bind
+      - grafana-data:/var/lib/grafana # volume (대시보드 설정, 소스, 계정 ...)
+    depends_on:
+      - prometheus
+    networks:
+      - monitoring
+    restart: unless-stopped
+
+volumes:
+  grafana-data:
 
 networks:
   monitoring:
