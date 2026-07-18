@@ -27,9 +27,9 @@ public class SchedulePriceQueryService {
 		return FindDTO.Result.from(schedulePrice);
 	}
 
-	public FindAllDTO.Result findAll() {
+	public FindAllDTO.Result findAll(FindAllDTO.Command command) {
 		return FindAllDTO.Result.builder()
-			.schedulePrices(schedulePriceRepository.findAll().stream()
+			.schedulePrices(schedulePriceRepository.findAllByConcertScheduleId(command.getConcertScheduleId()).stream()
 				.map(FindAllDTO.Result.SchedulePriceInfo::from)
 				.toList())
 			.build();

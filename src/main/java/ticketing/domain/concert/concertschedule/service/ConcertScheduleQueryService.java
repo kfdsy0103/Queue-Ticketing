@@ -27,9 +27,9 @@ public class ConcertScheduleQueryService {
 		return FindDTO.Result.from(concertSchedule);
 	}
 
-	public FindAllDTO.Result findAll() {
+	public FindAllDTO.Result findAll(FindAllDTO.Command command) {
 		return FindAllDTO.Result.builder()
-			.concertSchedules(concertScheduleRepository.findAll().stream()
+			.concertSchedules(concertScheduleRepository.findAllByConcertId(command.getConcertId()).stream()
 				.map(FindAllDTO.Result.ConcertScheduleInfo::from)
 				.toList())
 			.build();

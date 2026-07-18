@@ -13,6 +13,12 @@ public class FindDTO {
 	@Builder
 	public static class Command {
 		Long concertScheduleId;
+
+		public static Command of(Long concertScheduleId) {
+			return Command.builder()
+				.concertScheduleId(concertScheduleId)
+				.build();
+		}
 	}
 
 	@Getter

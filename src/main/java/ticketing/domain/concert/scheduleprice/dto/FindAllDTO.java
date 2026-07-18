@@ -10,6 +10,18 @@ public class FindAllDTO {
 
 	@Getter
 	@Builder
+	public static class Command {
+		Long concertScheduleId;
+
+		public static Command of(Long concertScheduleId) {
+			return Command.builder()
+				.concertScheduleId(concertScheduleId)
+				.build();
+		}
+	}
+
+	@Getter
+	@Builder
 	public static class Result {
 		List<SchedulePriceInfo> schedulePrices;
 

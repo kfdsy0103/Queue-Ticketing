@@ -16,23 +16,25 @@ import ticketing.global.apiPayload.code.GeneralSuccessCode;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/v1/schedule-prices")
+@RequestMapping("/api/v1/concert-schedules/{concertScheduleId}/schedule-prices")
 @RequiredArgsConstructor
 public class SchedulePriceController {
 
 	private final SchedulePriceQueryService schedulePriceQueryService;
 
 	@GetMapping("/{schedulePriceId}")
-	public CommonResponse<FindDTO.Response> find(@PathVariable Long schedulePriceId, @RequestParam Long userId) {
-		log.info("[SchedulePriceController] find() 호출 - userId: {}, schedulePriceId: {}", schedulePriceId, userId);
-		FindDTO.Result result = schedulePriceQueryService.find(FindDTO.Command.builder().schedulePriceId(schedulePriceId).build());
+	public CommonResponse<FindDTO.Response> find(@PathVariable Long concertScheduleId,
+		@PathVariable Long schedulePriceId, @RequestParam Long userId) {
+		log.info("[SchedulePriceController] find() 호출 - userId: {}, concertScheduleId: {}, schedulePriceId: {}",
+			userId, concertScheduleId, schedulePriceId);
+		FindDTO.Result result = schedulePriceQueryService.find(FindDTO.Command.of(schedulePriceId));
 		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
 	}
 
 	@GetMapping
-	public CommonResponse<FindAllDTO.Response> findAll(@RequestParam Long userId) {
-		log.info("[SchedulePriceController] findAll() 호출 - userId: {}", userId);
-		FindAllDTO.Result result = schedulePriceQueryService.findAll();
+	public CommonResponse<FindAllDTO.Response> findAll(@PathVariable Long concertScheduleId, @RequestParam Long userId) {
+		log.info("[SchedulePriceController] findAll() 호출 - userId: {}, concertScheduleId: {}", userId, concertScheduleId);
+		FindAllDTO.Result result = schedulePriceQueryService.findAll(FindAllDTO.Command.of(concertScheduleId));
 		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
 	}
 }

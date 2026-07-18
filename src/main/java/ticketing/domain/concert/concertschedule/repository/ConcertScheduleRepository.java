@@ -12,4 +12,6 @@ public interface ConcertScheduleRepository extends JpaRepository<ConcertSchedule
 
 	List<ConcertSchedule> findAllByTicketOpenAtBeforeAndPerformanceDateGreaterThanEqual(
 		LocalDateTime ticketOpenAt, LocalDate performanceDate);
+
+	List<ConcertSchedule> findAllByConcertId(Long concertId);
 }

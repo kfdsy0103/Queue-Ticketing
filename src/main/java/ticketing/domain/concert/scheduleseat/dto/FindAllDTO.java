@@ -11,6 +11,16 @@ public class FindAllDTO {
 	@Builder
 	public static class Command {
 		Long userId;
+		Long concertScheduleId;
+		String token;
+
+		public static Command of(Long userId, Long concertScheduleId, String token) {
+			return Command.builder()
+				.userId(userId)
+				.concertScheduleId(concertScheduleId)
+				.token(token)
+				.build();
+		}
 	}
 
 	@Getter

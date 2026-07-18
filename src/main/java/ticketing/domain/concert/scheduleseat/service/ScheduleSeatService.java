@@ -95,6 +95,23 @@ public class ScheduleSeatService {
 		ScheduleSeat scheduleSeat = scheduleSeatRepository.findById(command.getScheduleSeatId())
 			.orElseThrow(() -> new GeneralException(ScheduleSeatErrorCode.SCHEDULE_SEAT_NOT_FOUND));
 
+		// 토큰에 기록된 userId와 요청자 userId 일치 검사
+		Long tokenUserId = jwtTokenUtil.getClaim(command.getToken(), "userId", Long.class);
+		if (!command.getUserId().equals(tokenUserId)) {
+			throw new GeneralException(GeneralErrorCode.FORBIDDEN);
+		}
+
+		// 유저가 해당 회차의 대기열을 통과(Active)했고, 최신 화면(sessionId)의 요청인지 확인
+		Long concertScheduleId = scheduleSeat.getConcertSchedule().getId();
+		String storedSessionId = redisUtil.hGet(QueueRedisKeys.activeKey(concertScheduleId), command.getUserId().toString());
+		if (storedSessionId == null) {
+			throw new GeneralException(QueueErrorCode.NOT_ACTIVE);
+		}
+		String queueSessionId = jwtTokenUtil.getClaim(command.getToken(), "queueSessionId", String.class);
+		if (!queueSessionId.equals(storedSessionId)) {
+			throw new GeneralException(QueueErrorCode.SESSION_REVOKED);	// 다른 화면에서 예매를 이어받은 경우 (이 화면은 종료)
+		}
+
 		Long occupiedByMe = redisUtil.execute(
 			VERIFY_OCCUPY_SCRIPT,
 			List.of(ScheduleSeatRedisKeys.occupyKey(scheduleSeat.getId())),
@@ -111,7 +128,24 @@ public class ScheduleSeatService {
 	}
 
 	public FindAllDTO.Result findAll(FindAllDTO.Command command) {
-		List<FindDTO.Result> scheduleSeats = scheduleSeatRepository.findAll().stream()
+
+		// 토큰에 기록된 userId와 요청자 userId 일치 검사
+		Long tokenUserId = jwtTokenUtil.getClaim(command.getToken(), "userId", Long.class);
+		if (!command.getUserId().equals(tokenUserId)) {
+			throw new GeneralException(GeneralErrorCode.FORBIDDEN);
+		}
+
+		// 유저가 해당 회차의 대기열을 통과(Active)했고, 최신 화면(sessionId)의 요청인지 확인
+		String storedSessionId = redisUtil.hGet(QueueRedisKeys.activeKey(command.getConcertScheduleId()), command.getUserId().toString());
+		if (storedSessionId == null) {
+			throw new GeneralException(QueueErrorCode.NOT_ACTIVE);
+		}
+		String queueSessionId = jwtTokenUtil.getClaim(command.getToken(), "queueSessionId", String.class);
+		if (!queueSessionId.equals(storedSessionId)) {
+			throw new GeneralException(QueueErrorCode.SESSION_REVOKED);	// 다른 화면에서 예매를 이어받은 경우 (이 화면은 종료)
+		}
+
+		List<FindDTO.Result> scheduleSeats = scheduleSeatRepository.findAllByConcertScheduleId(command.getConcertScheduleId()).stream()
 			.map(scheduleSeat -> {
 				Long occupiedByMe = redisUtil.execute(
 					VERIFY_OCCUPY_SCRIPT,
