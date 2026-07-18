@@ -69,13 +69,13 @@ public class OrderController {
 	 * 결제 완료된 주문에 속한 모든 좌석을 취소하며, PG 전체 환불과 좌석 상태 복구가 함께 처리됩니다.
 	 */
 	@DeleteMapping("/{orderId}/cancel-all")
-	public CommonResponse<CancelDTO.Response> cancel(@PathVariable Long orderId, @RequestParam Long userId) {
+	public CommonResponse<CancelDTO.Response> cancelAll(@PathVariable Long orderId, @RequestParam Long userId) {
 		log.info("[OrderController] cancel() 호출 - userId: {}, orderId: {}", orderId, userId);
 		CancelDTO.Command command = CancelDTO.Command.builder()
 			.orderId(orderId)
 			.userId(userId)
 			.build();
-		CancelDTO.Result result = orderCommandService.cancel(command);
+		CancelDTO.Result result = orderCommandService.cancelAll(command);
 		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
 	}
 }

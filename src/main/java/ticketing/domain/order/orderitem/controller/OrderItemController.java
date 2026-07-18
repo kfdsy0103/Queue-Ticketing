@@ -25,7 +25,7 @@ public class OrderItemController {
 	@DeleteMapping("/{orderId}/cancel-partial")
 	public CommonResponse<CancelPartialDTO.Response> cancelPartial(@Valid @RequestBody CancelPartialDTO.Request request, @RequestParam Long userId) {
 		log.info("[OrderItemController] cancelPartial() 호출 - userId: {}, orderItemId: {}", request.getOrderItemId(), userId);
-		CancelPartialDTO.Result result = orderItemService.cancel(request.toCommand(userId));
+		CancelPartialDTO.Result result = orderItemService.cancelPartial(request.toCommand(userId));
 		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
 	}
 }

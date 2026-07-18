@@ -29,7 +29,7 @@ public class OrderItemService {
 	private final PaymentRepository paymentRepository;
 	private final KakaoPayApiClient kakaoPayApiClient;
 
-	public CancelPartialDTO.Result cancel(CancelPartialDTO.Command command) {
+	public CancelPartialDTO.Result cancelPartial(CancelPartialDTO.Command command) {
 		OrderItem orderItem = orderItemRepository.findById(command.getOrderItemId())
 			.orElseThrow(() -> new GeneralException(OrderItemErrorCode.ORDER_ITEM_NOT_FOUND));
 

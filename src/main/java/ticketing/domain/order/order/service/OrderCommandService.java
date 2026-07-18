@@ -217,7 +217,7 @@ public class OrderCommandService {
 			.build();
 	}
 
-	public CancelDTO.Result cancel(CancelDTO.Command command) {
+	public CancelDTO.Result cancelAll(CancelDTO.Command command) {
 		Order order = orderRepository.findById(command.getOrderId())
 			.orElseThrow(() -> new GeneralException(OrderErrorCode.ORDER_NOT_FOUND));
 
