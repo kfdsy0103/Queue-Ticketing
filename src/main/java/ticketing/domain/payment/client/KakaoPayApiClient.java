@@ -11,8 +11,11 @@ import org.springframework.web.client.HttpClientErrorException;
 import lombok.extern.slf4j.Slf4j;
 import ticketing.domain.payment.client.dto.KakaoPayApproveRequest;
 import ticketing.domain.payment.client.dto.KakaoPayApproveResponse;
+import ticketing.domain.payment.client.dto.KakaoPayOrderRequest;
+import ticketing.domain.payment.client.dto.KakaoPayOrderResponse;
 import ticketing.domain.payment.client.dto.KakaoPayReadyRequest;
 import ticketing.domain.payment.client.dto.KakaoPayReadyResponse;
+import ticketing.domain.payment.client.enums.KakaoPayStatus;
 import ticketing.global.apiPayload.code.GeneralErrorCode;
 import ticketing.global.apiPayload.exception.GeneralException;
 
@@ -49,14 +52,14 @@ public class KakaoPayApiClient {
 
 			String tid = "tid_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
 			String redirectUrl = "https://리다이렉트_카카오페이_결제_경로?tid=" + tid;
-			log.info("PG 결제 준비 완료. tid={}", tid);
+			log.info("[KakaoPayApiClient] - ready() PG 결제 준비 완료. tid={}", tid);
 
 			return KakaoPayReadyResponse.builder()
 				.tid(tid)
 				.redirectUrl(redirectUrl)
 				.build();
 		} catch (InterruptedException e) {
-			log.error("PaymentClient - ready()에서 Thread.sleep() 에러 발생", e);
+			log.error("[KakaoPayApiClient] - ready() Thread.sleep() 에러 발생", e);
 			Thread.currentThread().interrupt();
 			throw new GeneralException(GeneralErrorCode.INTERNAL_SERVER_ERROR);
 		}
@@ -82,7 +85,7 @@ public class KakaoPayApiClient {
 
 			String tid = request.getTid();
 			String aid = "aid_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
-			log.info("PG 결제 승인 완료. (출금 완료) tid={}, aid={}", tid, aid);
+			log.info("[KakaoPayApiClient] - approve() PG 결제 승인 완료. (출금 완료) tid={}, aid={}", tid, aid);
 
 			return KakaoPayApproveResponse.builder()
 				.aid(aid)
@@ -92,7 +95,7 @@ public class KakaoPayApiClient {
 				.approvedAt(LocalDateTime.now())
 				.build();
 		} catch (InterruptedException e) {
-			log.error("PaymentClient - approve()에서 Thread.sleep() 에러 발생", e);
+			log.error("[KakaoPayApiClient] - approve() Thread.sleep() 에러 발생", e);
 			Thread.currentThread().interrupt();
 			throw new GeneralException(GeneralErrorCode.INTERNAL_SERVER_ERROR);
 		}
@@ -117,9 +120,44 @@ public class KakaoPayApiClient {
 			// cancel API 호출도 0.5초가 걸린다고 가정
 			Thread.sleep(500);
 
-			log.info("PG 결제 취소 완료. tid={}, amount={}", tid, amount);
+			log.info("[KakaoPayApiClient] - cancel() PG 결제 취소 완료. tid={}, amount={}", tid, amount);
 		} catch (InterruptedException e) {
-			log.error("PaymentClient - cancel()에서 Thread.sleep() 에러 발생", e);
+			log.error("[KakaoPayApiClient] - cancel() Thread.sleep() 에러 발생", e);
+			Thread.currentThread().interrupt();
+			throw new GeneralException(GeneralErrorCode.INTERNAL_SERVER_ERROR);
+		}
+	}
+
+	/**
+	 * tid로 결제 상태를 확인합니다. 실제 카카오페이 '주문 조회' API를 모방하여 enums를 작성하였습니다.
+	 * 승인 이후 상태가 실제로 반영되었는지 재확인하고 싶을 때, 예를 들어 돈은 출금되었지만 서버가 크래시되어 DB에 반영을 못한 경우
+	 * 를 대비하여 해당 API를 스케쥴러에서 조회 및 refund할 수 있도록 의도하였습니다.
+	 */
+	@Retryable(
+		include = Exception.class,
+		exclude = {
+			HttpClientErrorException.BadRequest.class,
+			HttpClientErrorException.NotFound.class
+		},
+		maxAttempts = 3,
+		backoff = @Backoff(delay = 500)
+	)
+	public KakaoPayOrderResponse order(KakaoPayOrderRequest request) {
+		try {
+
+			// order API 호출도 0.5초가 걸린다고 가정
+			Thread.sleep(500);
+
+			String tid = request.getTid();
+			log.info("[KakaoPayApiClient] - order() PG 결제 상태 조회 완료. tid={}, status={}", tid, KakaoPayStatus.SUCCESS_PAYMENT);
+
+			return KakaoPayOrderResponse.builder()
+				.tid(tid)
+				.status(KakaoPayStatus.SUCCESS_PAYMENT)
+				.approvedAt(LocalDateTime.now())
+				.build();
+		} catch (InterruptedException e) {
+			log.error("[KakaoPayApiClient] - order() Thread.sleep() 에러 발생", e);
 			Thread.currentThread().interrupt();
 			throw new GeneralException(GeneralErrorCode.INTERNAL_SERVER_ERROR);
 		}
