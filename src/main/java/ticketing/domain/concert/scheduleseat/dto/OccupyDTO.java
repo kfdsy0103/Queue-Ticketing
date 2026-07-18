@@ -3,6 +3,7 @@ package ticketing.domain.concert.scheduleseat.dto;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
 import lombok.Builder;
 import lombok.Getter;
@@ -15,11 +16,14 @@ public class OccupyDTO {
 	public static class Request {
 		@NotEmpty
 		List<Long> scheduleSeatIds;
+		@NotBlank
+		String token;
 
 		public Command toCommand(Long userId) {
 			return Command.builder()
 				.userId(userId)
 				.scheduleSeatIds(scheduleSeatIds)
+				.token(token)
 				.build();
 		}
 	}
@@ -29,6 +33,7 @@ public class OccupyDTO {
 	public static class Command {
 		Long userId;
 		List<Long> scheduleSeatIds;
+		String token;
 	}
 
 	@Getter

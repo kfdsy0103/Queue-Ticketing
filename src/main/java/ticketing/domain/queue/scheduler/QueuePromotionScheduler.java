@@ -62,11 +62,12 @@ public class QueuePromotionScheduler {
 
 		String waitingKey = QueueRedisKeys.waitingKey(concertScheduleId);
 		String activeKey = QueueRedisKeys.activeKey(concertScheduleId);
+		String userInfoKey = QueueRedisKeys.userInfoKey(concertScheduleId);
 
-		// '대기열에서 빼고 -> 작업열로 활성화' 를 원자 처리
+		// '대기열에서 빼고 -> 작업열로 활성화(sessionId 복사)' 를 원자 처리
 		Long promotedCount = redisUtil.execute(
 			PROMOTE_SCRIPT,
-			List.of(waitingKey, activeKey),
+			List.of(waitingKey, activeKey, userInfoKey),
 			PROMOTION_BATCH_SIZE,
 			ACTIVE_TTL.toSeconds()
 		);

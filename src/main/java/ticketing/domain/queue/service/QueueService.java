@@ -31,6 +31,7 @@ public class QueueService {
 	// TODO: 실제 경로로 변경
 	private static final String REDIRECT_ENDPOINT = "/frontend/booking";
 	private static final Duration SESSION_TTL = Duration.ofMinutes(3);
+	private static final Duration ACTIVE_TTL = Duration.ofMinutes(7);
 
 	private final UserRepository userRepository;
 	private final RedisUtil redisUtil;
@@ -157,6 +158,13 @@ public class QueueService {
 		String queueSessionId = UUID.randomUUID().toString();
 		redisUtil.hSet(userInfoKey, user.getId().toString(), queueSessionId);
 		redisUtil.hExpire(userInfoKey, user.getId().toString(), SESSION_TTL);	// TTL 하트비트
+
+		// Active로 대기열 통과했으면 점유 작업 시에도 sessionId 영향받도록 반영
+		isActive = redisUtil.hHasKey(activeKey, user.getId().toString());
+		if (isActive) {
+			redisUtil.hSet(activeKey, user.getId().toString(), queueSessionId);
+			redisUtil.hExpire(activeKey, user.getId().toString(), ACTIVE_TTL);
+		}
 
 		String token = jwtTokenUtil.generateToken(Map.of(
 			"userId", user.getId(),

@@ -19,7 +19,9 @@ import ticketing.domain.concert.scheduleseat.exception.ScheduleSeatErrorCode;
 import ticketing.domain.concert.scheduleseat.repository.ScheduleSeatRepository;
 import ticketing.domain.queue.constants.QueueRedisKeys;
 import ticketing.domain.queue.exception.QueueErrorCode;
+import ticketing.global.apiPayload.code.GeneralErrorCode;
 import ticketing.global.apiPayload.exception.GeneralException;
+import ticketing.global.util.JwtTokenUtil;
 import ticketing.global.util.RedisUtil;
 
 @Slf4j
@@ -35,6 +37,7 @@ public class ScheduleSeatService {
 
 	private final ScheduleSeatRepository scheduleSeatRepository;
 	private final RedisUtil redisUtil;
+	private final JwtTokenUtil jwtTokenUtil;
 
 	/**
 	 * 여러 좌석을 5분간 원자적으로 점유(선점)합니다. Lua 스크립트로 전체 좌석을 검사 후 일괄 SET하여,
@@ -48,11 +51,22 @@ public class ScheduleSeatService {
 			throw new GeneralException(ScheduleSeatErrorCode.SCHEDULE_SEAT_NOT_FOUND);
 		}
 
-		// 유저가 해당 회차의 대기열을 통과(Active)했는지 확인
+		// 토큰에 기록된 userId와 요청자 userId 일치 검사
+		Long tokenUserId = jwtTokenUtil.getClaim(command.getToken(), "userId", Long.class);
+		if (!command.getUserId().equals(tokenUserId)) {
+			throw new GeneralException(GeneralErrorCode.FORBIDDEN);
+		}
+
+		// 유저가 해당 회차의 대기열을 통과(Active)했고, 최신 화면(sessionId)의 요청인지 확인
 		Long concertScheduleId = scheduleSeats.getFirst().getConcertSchedule().getId();
 		String activeKey = QueueRedisKeys.activeKey(concertScheduleId);
-		if (!redisUtil.hHasKey(activeKey, command.getUserId().toString())) {
+		String storedSessionId = redisUtil.hGet(activeKey, command.getUserId().toString());
+		if (storedSessionId == null) {
 			throw new GeneralException(QueueErrorCode.NOT_ACTIVE);
+		}
+		String queueSessionId = jwtTokenUtil.getClaim(command.getToken(), "queueSessionId", String.class);
+		if (!queueSessionId.equals(storedSessionId)) {
+			throw new GeneralException(QueueErrorCode.SESSION_REVOKED);	// 다른 화면에서 예매를 이어받은 경우 (이 화면은 종료)
 		}
 
 		List<String> occupyKeys = command.getScheduleSeatIds().stream()

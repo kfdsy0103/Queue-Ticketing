@@ -26,7 +26,7 @@ public final class QueueRedisKeys {
 	}
 
 	/**
-	 * 작업열(Active) 사용자 목록 Hash. (field: userId, 필드별 TTL은 HEXPIRE로 관리, Redis 7.4+)
+	 * 작업열(Active) 사용자 목록 Hash. (field: userId, value: queueSessionId, 필드별 TTL은 HEXPIRE로 관리, Redis 7.4+)
 	 */
 	public static String activeKey(Long concertScheduleId) {
 		return waitingKey(concertScheduleId) + ":active";
