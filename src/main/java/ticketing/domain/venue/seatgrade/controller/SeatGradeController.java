@@ -24,8 +24,8 @@ public class SeatGradeController {
 
 	@GetMapping("/{seatGradeId}")
 	public CommonResponse<FindDTO.Response> find(@PathVariable Long seatGradeId, @RequestParam Long userId) {
-		log.info("[SeatGradeController] find() 호출 - seatGradeId: {}, userId: {}", seatGradeId, userId);
-		FindDTO.Result result = seatGradeQueryService.find(FindDTO.Command.builder().seatGradeId(seatGradeId).build());
+		log.info("[SeatGradeController] find() 호출 - userId: {}, seatGradeId: {}", userId, seatGradeId);
+		FindDTO.Result result = seatGradeQueryService.find(FindDTO.Command.of(seatGradeId));
 		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
 	}
 

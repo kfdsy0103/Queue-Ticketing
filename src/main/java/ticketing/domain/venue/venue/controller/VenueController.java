@@ -37,8 +37,8 @@ public class VenueController {
 
 	@GetMapping("/{venueId}")
 	public CommonResponse<FindDTO.Response> find(@PathVariable Long venueId, @RequestParam Long userId) {
-		log.info("[VenueController] find() 호출 - venueId: {}, userId: {}", venueId, userId);
-		FindDTO.Result result = venueQueryService.find(FindDTO.Command.builder().venueId(venueId).build());
+		log.info("[VenueController] find() 호출 - userId: {}, venueId: {}", userId, venueId);
+		FindDTO.Result result = venueQueryService.find(FindDTO.Command.of(venueId));
 		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
 	}
 

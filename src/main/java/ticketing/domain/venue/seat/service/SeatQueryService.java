@@ -16,9 +16,9 @@ public class SeatQueryService {
 
 	private final SeatRepository seatRepository;
 
-	public FindAllDTO.Result findAll() {
+	public FindAllDTO.Result findAll(FindAllDTO.Command command) {
 		return FindAllDTO.Result.builder()
-			.seatInfos(seatRepository.findAll().stream()
+			.seatInfos(seatRepository.findAllByVenueId(command.getVenueId()).stream()
 				.map(FindAllDTO.Result.SeatInfo::from)
 				.toList())
 			.build();

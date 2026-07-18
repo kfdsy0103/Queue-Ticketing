@@ -10,6 +10,18 @@ public class FindAllDTO {
 
 	@Getter
 	@Builder
+	public static class Command {
+		Long venueId;
+
+		public static Command of(Long venueId) {
+			return Command.builder()
+				.venueId(venueId)
+				.build();
+		}
+	}
+
+	@Getter
+	@Builder
 	public static class Result {
 		List<SeatInfo> seatInfos;
 
