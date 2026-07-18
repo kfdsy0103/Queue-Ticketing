@@ -71,11 +71,7 @@ public class OrderController {
 	@DeleteMapping("/{orderId}/cancel-all")
 	public CommonResponse<CancelDTO.Response> cancelAll(@PathVariable Long orderId, @RequestParam Long userId) {
 		log.info("[OrderController] cancel() 호출 - userId: {}, orderId: {}", orderId, userId);
-		CancelDTO.Command command = CancelDTO.Command.builder()
-			.orderId(orderId)
-			.userId(userId)
-			.build();
-		CancelDTO.Result result = orderCommandService.cancelAll(command);
+		CancelDTO.Result result = orderCommandService.cancelAll(CancelDTO.Command.of(orderId, userId));
 		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
 	}
 }

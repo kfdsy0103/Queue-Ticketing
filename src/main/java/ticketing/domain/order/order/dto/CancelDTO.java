@@ -10,6 +10,13 @@ public class CancelDTO {
 	public static class Command {
 		Long orderId;
 		Long userId;
+
+		public static Command of(Long orderId, Long userId) {
+			return Command.builder()
+				.orderId(orderId)
+				.userId(userId)
+				.build();
+		}
 	}
 
 	@Getter
