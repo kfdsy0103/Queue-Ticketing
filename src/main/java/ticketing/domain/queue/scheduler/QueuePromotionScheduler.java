@@ -12,6 +12,8 @@ import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.core.LockAssert;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import ticketing.domain.concert.concertschedule.entity.ConcertSchedule;
 import ticketing.domain.concert.concertschedule.repository.ConcertScheduleRepository;
 import ticketing.domain.queue.constants.QueueRedisKeys;
@@ -32,10 +34,12 @@ public class QueuePromotionScheduler {
 
 	/**
 	 * 티켓이 오픈됐고 공연일이 지나지 않은 콘서트 회차 목록을 조회하여,
-	 * 회차별로 2초마다 100명씩 입장 처리(Active)합니다.
+	 * 회차별로 1초마다 100명씩 입장 처리(Active)합니다.
+	 * ShedLock으로 다중 인스턴스에서의 스케쥴러 동작 제어 추가
 	*/
-	@Async("queueTaskExecutor")
-	@Scheduled(fixedDelay = 2000)
+	@Async("schedulerTaskExecutor")
+	@Scheduled(fixedDelay = 1000)
+	@SchedulerLock(name = "queuePromotionScheduler", lockAtLeastFor = "PT1S", lockAtMostFor = "PT30S")
 	public void promoteScheduler() {
 		LocalDateTime now = LocalDateTime.now();
 		log.debug("[QueuePromotionScheduler] promote() 스케쥴러 동작, now: {}", now);
