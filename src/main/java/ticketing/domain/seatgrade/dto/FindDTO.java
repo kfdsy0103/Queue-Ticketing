@@ -1,8 +1,8 @@
-package ticketing.domain.venue.seatgrade.dto;
+package ticketing.domain.seatgrade.dto;
 
 import lombok.Builder;
 import lombok.Getter;
-import ticketing.domain.venue.seatgrade.entity.SeatGrade;
+import ticketing.domain.seatgrade.entity.SeatGrade;
 
 public class FindDTO {
 

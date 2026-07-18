@@ -1,4 +1,4 @@
-package ticketing.domain.venue.seatgrade.entity;
+package ticketing.domain.seatgrade.entity;
 
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;

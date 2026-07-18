@@ -13,7 +13,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
-import ticketing.domain.venue.seatgrade.entity.SeatGrade;
+import ticketing.domain.seatgrade.entity.SeatGrade;
 import ticketing.domain.venue.venue.entity.Venue;
 import ticketing.global.entity.BaseEntity;
 

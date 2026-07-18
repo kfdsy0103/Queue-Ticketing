@@ -1,15 +1,15 @@
-package ticketing.domain.venue.seatgrade.service;
+package ticketing.domain.seatgrade.service;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import ticketing.domain.venue.seatgrade.dto.FindAllDTO;
-import ticketing.domain.venue.seatgrade.dto.FindDTO;
-import ticketing.domain.venue.seatgrade.entity.SeatGrade;
-import ticketing.domain.venue.seatgrade.exception.SeatGradeErrorCode;
-import ticketing.domain.venue.seatgrade.repository.SeatGradeRepository;
+import ticketing.domain.seatgrade.dto.FindAllDTO;
+import ticketing.domain.seatgrade.dto.FindDTO;
+import ticketing.domain.seatgrade.entity.SeatGrade;
+import ticketing.domain.seatgrade.exception.SeatGradeErrorCode;
+import ticketing.domain.seatgrade.repository.SeatGradeRepository;
 import ticketing.global.apiPayload.exception.GeneralException;
 
 @Slf4j

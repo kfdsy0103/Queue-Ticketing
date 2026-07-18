@@ -8,8 +8,8 @@ import jakarta.validation.constraints.NotEmpty;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import ticketing.domain.seatgrade.entity.SeatGrade;
 import ticketing.domain.venue.seat.entity.Seat;
-import ticketing.domain.venue.seatgrade.entity.SeatGrade;
 import ticketing.domain.venue.venue.entity.Venue;
 
 public class CreateDTO {

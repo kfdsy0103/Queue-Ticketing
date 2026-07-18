@@ -1,4 +1,4 @@
-package ticketing.domain.venue.seatgrade.exception;
+package ticketing.domain.seatgrade.exception;
 
 import org.springframework.http.HttpStatus;
 

@@ -1,4 +1,4 @@
-package ticketing.domain.venue.seatgrade.controller;
+package ticketing.domain.seatgrade.controller;
 
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -8,9 +8,9 @@ import org.springframework.web.bind.annotation.RestController;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import ticketing.domain.venue.seatgrade.dto.FindAllDTO;
-import ticketing.domain.venue.seatgrade.dto.FindDTO;
-import ticketing.domain.venue.seatgrade.service.SeatGradeQueryService;
+import ticketing.domain.seatgrade.dto.FindAllDTO;
+import ticketing.domain.seatgrade.dto.FindDTO;
+import ticketing.domain.seatgrade.service.SeatGradeQueryService;
 import ticketing.global.apiPayload.CommonResponse;
 import ticketing.global.apiPayload.code.GeneralSuccessCode;
 

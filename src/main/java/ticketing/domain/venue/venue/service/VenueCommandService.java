@@ -10,11 +10,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import ticketing.domain.seatgrade.entity.SeatGrade;
+import ticketing.domain.seatgrade.exception.SeatGradeErrorCode;
+import ticketing.domain.seatgrade.repository.SeatGradeRepository;
 import ticketing.domain.venue.seat.entity.Seat;
 import ticketing.domain.venue.seat.repository.SeatRepository;
-import ticketing.domain.venue.seatgrade.entity.SeatGrade;
-import ticketing.domain.venue.seatgrade.exception.SeatGradeErrorCode;
-import ticketing.domain.venue.seatgrade.repository.SeatGradeRepository;
 import ticketing.domain.venue.venue.dto.CreateDTO;
 import ticketing.domain.venue.venue.entity.Venue;
 import ticketing.domain.venue.venue.repository.VenueRepository;

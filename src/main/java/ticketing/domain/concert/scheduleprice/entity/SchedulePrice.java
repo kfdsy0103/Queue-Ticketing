@@ -15,7 +15,7 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import ticketing.domain.concert.concertschedule.entity.ConcertSchedule;
-import ticketing.domain.venue.seatgrade.entity.SeatGrade;
+import ticketing.domain.seatgrade.entity.SeatGrade;
 import ticketing.global.entity.BaseEntity;
 
 @Entity
