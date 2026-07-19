@@ -1,16 +1,21 @@
 package ticketing.domain.order.orderitem.service;
 
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import ticketing.domain.concert.scheduleseat.constants.ScheduleSeatRedisKeys;
 import ticketing.domain.concert.scheduleseat.entity.ScheduleSeat;
 import ticketing.domain.order.order.entity.Order;
 import ticketing.domain.order.order.exception.OrderErrorCode;
 import ticketing.domain.order.orderitem.dto.CancelPartialDTO;
 import ticketing.domain.order.orderitem.entity.OrderItem;
+import ticketing.domain.order.orderitem.entity.OrderItemHistory;
 import ticketing.domain.order.orderitem.exception.OrderItemErrorCode;
+import ticketing.domain.order.orderitem.repository.OrderItemHistoryRepository;
 import ticketing.domain.order.orderitem.repository.OrderItemRepository;
 import ticketing.domain.payment.client.KakaoPayApiClient;
 import ticketing.domain.payment.entity.Payment;
@@ -18,6 +23,7 @@ import ticketing.domain.payment.exception.PaymentErrorCode;
 import ticketing.domain.payment.repository.PaymentRepository;
 import ticketing.global.apiPayload.code.GeneralErrorCode;
 import ticketing.global.apiPayload.exception.GeneralException;
+import ticketing.global.util.RedisUtil;
 
 @Slf4j
 @Service
@@ -26,8 +32,10 @@ import ticketing.global.apiPayload.exception.GeneralException;
 public class OrderItemService {
 
 	private final OrderItemRepository orderItemRepository;
+	private final OrderItemHistoryRepository orderItemHistoryRepository;
 	private final PaymentRepository paymentRepository;
 	private final KakaoPayApiClient kakaoPayApiClient;
+	private final RedisUtil redisUtil;
 
 	public CancelPartialDTO.Result cancelPartial(CancelPartialDTO.Command command) {
 		OrderItem orderItem = orderItemRepository.findById(command.getOrderItemId())
@@ -51,10 +59,15 @@ public class OrderItemService {
 		// 카카오페이 부분 환불 - 외부 API 호출
 		kakaoPayApiClient.cancel(payment.getTid(), orderItem.getPrice());
 
-		// 좌석을 다시 AVAILABLE로 되돌리고 주문 항목 삭제
+		// 좌석을 다시 AVAILABLE로 되돌리고 주문 항목 삭제 (삭제 전 감사 이력 기록)
 		ScheduleSeat scheduleSeat = orderItem.getScheduleSeat();
 		scheduleSeat.cancel();
+
+		orderItemHistoryRepository.save(OrderItemHistory.from(orderItem, OrderItemHistory.Reason.CANCELLED_PARTIAL));
 		orderItemRepository.delete(orderItem);
+
+		// 이 좌석에 대한 주문이 종료되었으므로 재점유를 막던 점유 Key 해제
+		redisUtil.deleteAfterCommit(List.of(ScheduleSeatRedisKeys.occupyKey(scheduleSeat.getId())));
 
 		// 취소된 항목만큼 주문 금액 차감
 		order.subtractPrice(orderItem.getPrice());
