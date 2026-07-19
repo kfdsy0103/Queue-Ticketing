@@ -2,7 +2,7 @@ package ticketing.domain.concert.scheduleseat.dto;
 
 import lombok.Builder;
 import lombok.Getter;
-import ticketing.domain.concert.scheduleseat.entity.ScheduleSeat;
+import ticketing.domain.concert.scheduleseat.enums.SeatDisplayStatus;
 
 public class FindDTO {
 
@@ -28,8 +28,7 @@ public class FindDTO {
 		Long scheduleSeatId;
 		Long concertScheduleId;
 		Long seatId;
-		ScheduleSeat.SeatStatus seatStatus;
-		boolean occupiedByMe;
+		SeatDisplayStatus seatStatus;
 
 		public Response toResponse() {
 			return Response.builder()
@@ -37,7 +36,6 @@ public class FindDTO {
 				.concertScheduleId(concertScheduleId)
 				.seatId(seatId)
 				.seatStatus(seatStatus)
-				.occupiedByMe(occupiedByMe)
 				.build();
 		}
 	}
@@ -48,7 +46,6 @@ public class FindDTO {
 		Long scheduleSeatId;
 		Long concertScheduleId;
 		Long seatId;
-		ScheduleSeat.SeatStatus seatStatus;
-		boolean occupiedByMe;
+		SeatDisplayStatus seatStatus;
 	}
 }

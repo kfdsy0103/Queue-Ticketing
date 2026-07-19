@@ -2,6 +2,8 @@ package ticketing.domain.order.orderitem.service;
 
 import java.util.List;
 
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +32,9 @@ import ticketing.global.util.RedisUtil;
 @RequiredArgsConstructor
 @Transactional(readOnly = false)
 public class OrderItemService {
+
+	private static final RedisScript<Long> RELEASE_OCCUPY_SCRIPT =
+		RedisScript.of(new ClassPathResource("luaScripts/release-occupy.lua"), Long.class);
 
 	private final OrderItemRepository orderItemRepository;
 	private final OrderItemHistoryRepository orderItemHistoryRepository;
@@ -66,8 +71,12 @@ public class OrderItemService {
 		orderItemHistoryRepository.save(OrderItemHistory.from(orderItem, OrderItemHistory.Reason.CANCELLED_PARTIAL));
 		orderItemRepository.delete(orderItem);
 
-		// 이 좌석에 대한 주문이 종료되었으므로 재점유를 막던 점유 Key 해제
-		redisUtil.delete(List.of(ScheduleSeatRedisKeys.occupyKey(scheduleSeat.getId())));
+		// 이 좌석에 대한 주문이 종료되었으므로 재점유를 막던 점유 Key 해제 (그 사이 다른 사용자가 재점유했다면 건드리지 않음)
+		redisUtil.execute(
+			RELEASE_OCCUPY_SCRIPT,
+			List.of(ScheduleSeatRedisKeys.occupyKey(scheduleSeat.getId())),
+			command.getUserId().toString()
+		);
 
 		// 취소된 항목만큼 주문 금액 차감
 		order.subtractPrice(orderItem.getPrice());

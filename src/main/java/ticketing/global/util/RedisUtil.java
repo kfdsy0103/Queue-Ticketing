@@ -97,9 +97,16 @@ public class RedisUtil {
 	}
 
 	/**
-	 * Key들을 삭제합니다. (DEL)
+	 * Key의 존재 여부를 확인합니다. (EXISTS)
 	 */
-	public void delete(List<String> keys) {
-		redisTemplate.delete(keys);
+	public boolean hasKey(String key) {
+		return Boolean.TRUE.equals(redisTemplate.hasKey(key));
+	}
+
+	/**
+	 * 여러 Key의 값을 한 번의 요청으로 조회합니다. (MGET)
+	 */
+	public List<Object> multiGet(List<String> keys) {
+		return redisTemplate.opsForValue().multiGet(keys);
 	}
 }

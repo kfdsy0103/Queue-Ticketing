@@ -3,6 +3,7 @@ package ticketing.domain.concert.scheduleseat.service;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.stream.IntStream;
 
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -15,6 +16,7 @@ import ticketing.domain.concert.scheduleseat.dto.FindAllDTO;
 import ticketing.domain.concert.scheduleseat.dto.FindDTO;
 import ticketing.domain.concert.scheduleseat.dto.OccupyDTO;
 import ticketing.domain.concert.scheduleseat.entity.ScheduleSeat;
+import ticketing.domain.concert.scheduleseat.enums.SeatDisplayStatus;
 import ticketing.domain.concert.scheduleseat.exception.ScheduleSeatErrorCode;
 import ticketing.domain.concert.scheduleseat.repository.ScheduleSeatRepository;
 import ticketing.domain.queue.constants.QueueRedisKeys;
@@ -32,8 +34,6 @@ public class ScheduleSeatService {
 	private static final Duration OCCUPY_TTL = Duration.ofMinutes(5);
 	private static final RedisScript<Long> OCCUPY_SCRIPT =
 		RedisScript.of(new ClassPathResource("luaScripts/occupy-seats.lua"), Long.class);
-	private static final RedisScript<Long> VERIFY_OCCUPY_SCRIPT =
-		RedisScript.of(new ClassPathResource("luaScripts/verify-occupy.lua"), Long.class);
 
 	private final ScheduleSeatRepository scheduleSeatRepository;
 	private final RedisUtil redisUtil;
@@ -113,18 +113,20 @@ public class ScheduleSeatService {
 			throw new GeneralException(QueueErrorCode.SESSION_REVOKED);	// 다른 화면에서 예매를 이어받은 경우 (이 화면은 종료)
 		}
 
-		Long occupiedByMe = redisUtil.execute(
-			VERIFY_OCCUPY_SCRIPT,
-			List.of(ScheduleSeatRedisKeys.occupyKey(scheduleSeat.getId())),
-			command.getUserId().toString()
-		);
+		SeatDisplayStatus seatStatus;
+		if (scheduleSeat.getSeatStatus() == ScheduleSeat.SeatStatus.SOLD) {
+			seatStatus = SeatDisplayStatus.SOLD;
+		} else if (redisUtil.hasKey(ScheduleSeatRedisKeys.occupyKey(scheduleSeat.getId()))) {
+			seatStatus = SeatDisplayStatus.OCCUPIED;
+		} else {
+			seatStatus = SeatDisplayStatus.AVAILABLE;
+		}
 
 		return FindDTO.Result.builder()
 			.scheduleSeatId(scheduleSeat.getId())
 			.concertScheduleId(scheduleSeat.getConcertSchedule().getId())
 			.seatId(scheduleSeat.getSeat().getId())
-			.seatStatus(scheduleSeat.getSeatStatus())
-			.occupiedByMe(occupiedByMe != null && occupiedByMe == 1L)
+			.seatStatus(seatStatus)
 			.build();
 	}
 
@@ -146,20 +148,37 @@ public class ScheduleSeatService {
 			throw new GeneralException(QueueErrorCode.SESSION_REVOKED);	// 다른 화면에서 예매를 이어받은 경우 (이 화면은 종료)
 		}
 
-		List<FindDTO.Result> scheduleSeats = scheduleSeatRepository.findAllByConcertScheduleId(command.getConcertScheduleId()).stream()
-			.map(scheduleSeat -> {
-				Long occupiedByMe = redisUtil.execute(
-					VERIFY_OCCUPY_SCRIPT,
-					List.of(ScheduleSeatRedisKeys.occupyKey(scheduleSeat.getId())),
-					command.getUserId().toString()
-				);
+		List<ScheduleSeat> scheduleSeatEntities = scheduleSeatRepository.findAllByConcertScheduleId(command.getConcertScheduleId());
+		if (scheduleSeatEntities.isEmpty()) {
+			return FindAllDTO.Result.builder()
+				.scheduleSeats(List.of())
+				.build();
+		}
+
+		// occupy Key 목록을 한 번의 MGET으로 일괄 조회
+		List<String> occupyKeys = scheduleSeatEntities.stream()
+			.map(scheduleSeat -> ScheduleSeatRedisKeys.occupyKey(scheduleSeat.getId()))
+			.toList();
+		List<Object> occupyValues = redisUtil.multiGet(occupyKeys);
+
+		List<FindDTO.Result> scheduleSeats = IntStream.range(0, scheduleSeatEntities.size())
+			.mapToObj(i -> {
+				ScheduleSeat scheduleSeat = scheduleSeatEntities.get(i);
+
+				SeatDisplayStatus seatStatus;
+				if (scheduleSeat.getSeatStatus() == ScheduleSeat.SeatStatus.SOLD) {
+					seatStatus = SeatDisplayStatus.SOLD;
+				} else if (occupyValues.get(i) != null) {
+					seatStatus = SeatDisplayStatus.OCCUPIED;
+				} else {
+					seatStatus = SeatDisplayStatus.AVAILABLE;
+				}
 
 				return FindDTO.Result.builder()
 					.scheduleSeatId(scheduleSeat.getId())
 					.concertScheduleId(scheduleSeat.getConcertSchedule().getId())
 					.seatId(scheduleSeat.getSeat().getId())
-					.seatStatus(scheduleSeat.getSeatStatus())
-					.occupiedByMe(occupiedByMe != null && occupiedByMe == 1L)
+					.seatStatus(seatStatus)
 					.build();
 			})
 			.toList();

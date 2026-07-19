@@ -2,6 +2,8 @@ package ticketing.domain.payment.service;
 
 import java.util.List;
 
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -28,6 +30,9 @@ import ticketing.global.util.RedisUtil;
 @RequiredArgsConstructor
 @Transactional(readOnly = false)
 public class PaymentCommandService {
+
+	private static final RedisScript<Long> RELEASE_OCCUPY_SCRIPT =
+		RedisScript.of(new ClassPathResource("luaScripts/release-occupy.lua"), Long.class);
 
 	private final PaymentRepository paymentRepository;
 	private final OrderItemRepository orderItemRepository;
@@ -83,11 +88,11 @@ public class PaymentCommandService {
 		orderItemHistoryRepository.saveAll(orderItemHistories);
 		orderItemRepository.deleteAll(orderItems);
 
-		// 주문이 종료되었으므로 재점유를 막던 점유 Key 해제
+		// 주문이 종료되었으므로 재점유를 막던 점유 Key 해제 (다른 사용자가 점유했다면 해제 X)
 		List<String> occupyKeys = orderItems.stream()
 			.map(orderItem -> ScheduleSeatRedisKeys.occupyKey(orderItem.getScheduleSeat().getId()))
 			.toList();
-		redisUtil.delete(occupyKeys);
+		redisUtil.execute(RELEASE_OCCUPY_SCRIPT, occupyKeys, order.getUser().getId().toString());
 
 		order.cancel();
 

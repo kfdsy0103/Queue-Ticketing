@@ -20,8 +20,8 @@ import ticketing.domain.payment.service.PaymentCommandService;
 @RequiredArgsConstructor
 public class PaymentRefundScheduler {
 
-	// 10분이 지나도 처리되지 못하고 (서버 크래시, 네트워크 문제 등 ..) 잔존해있는 Payment 조회 시 기준이 되는 시간
-	private static final Duration STALE_READY_THRESHOLD = Duration.ofMinutes(10);
+	// 5분이 지나도 처리되지 못하고 (서버 크래시, 네트워크 문제 등 ..) 잔존해있는 Payment 조회 시 기준이 되는 시간
+	private static final Duration STALE_READY_THRESHOLD = Duration.ofMinutes(5);
 
 	private final PaymentRepository paymentRepository;
 	private final PaymentCommandService paymentCommandService;

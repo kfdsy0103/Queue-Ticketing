@@ -51,8 +51,11 @@ public class OrderCommandService {
 
 	private static final RedisScript<Long> VERIFY_OCCUPY_SCRIPT =
 		RedisScript.of(new ClassPathResource("luaScripts/verify-occupy.lua"), Long.class);
+	private static final RedisScript<Long> RELEASE_OCCUPY_SCRIPT =
+		RedisScript.of(new ClassPathResource("luaScripts/release-occupy.lua"), Long.class);
 
-	private static final Duration RESERVED_TTL = Duration.ofDays(1);
+	// 결제 제한 시간을 5분
+	private static final Duration PAYING_TTL = Duration.ofMinutes(5);
 
 	private final OrderRepository orderRepository;
 	private final UserRepository userRepository;
@@ -138,9 +141,9 @@ public class OrderCommandService {
 			.build();
 		paymentRepository.save(payment);
 
-		// 주문이 처리 중/완료 상태로 존재하는 동안 재점유되지 않도록 점유 Key의 TTL을 연장
+		// 주문 처리 중에 재점유되지 않도록 TTL을 연장
 		command.getScheduleSeatIds().forEach(scheduleSeatId ->
-			redisUtil.expire(ScheduleSeatRedisKeys.occupyKey(scheduleSeatId), RESERVED_TTL));
+			redisUtil.expire(ScheduleSeatRedisKeys.occupyKey(scheduleSeatId), PAYING_TTL));
 
 		return CreateDTO.Result.builder()
 			.orderId(order.getId())
@@ -259,11 +262,11 @@ public class OrderCommandService {
 
 		orderItemRepository.deleteAll(orderItems);
 
-		// 주문이 종료되었으므로 재점유를 막던 점유 Key 해제
+		// 주문이 종료되었으므로 재점유를 막던 점유 Key 해제 (그 사이 다른 사용자가 재점유했다면 건드리지 않음)
 		List<String> occupyKeys = orderItems.stream()
 			.map(orderItem -> ScheduleSeatRedisKeys.occupyKey(orderItem.getScheduleSeat().getId()))
 			.toList();
-		redisUtil.delete(occupyKeys);
+		redisUtil.execute(RELEASE_OCCUPY_SCRIPT, occupyKeys, command.getUserId().toString());
 
 		order.cancel();
 
