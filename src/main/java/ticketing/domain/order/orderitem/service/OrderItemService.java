@@ -67,7 +67,7 @@ public class OrderItemService {
 		orderItemRepository.delete(orderItem);
 
 		// 이 좌석에 대한 주문이 종료되었으므로 재점유를 막던 점유 Key 해제
-		redisUtil.deleteAfterCommit(List.of(ScheduleSeatRedisKeys.occupyKey(scheduleSeat.getId())));
+		redisUtil.delete(List.of(ScheduleSeatRedisKeys.occupyKey(scheduleSeat.getId())));
 
 		// 취소된 항목만큼 주문 금액 차감
 		order.subtractPrice(orderItem.getPrice());

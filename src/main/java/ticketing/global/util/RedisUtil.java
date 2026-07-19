@@ -7,6 +7,8 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import lombok.RequiredArgsConstructor;
 
@@ -85,5 +87,19 @@ public class RedisUtil {
 	 */
 	public <T> T execute(RedisScript<T> script, List<String> keys, Object... args) {
 		return redisTemplate.execute(script, keys, args);
+	}
+
+	/**
+	 * 이미 존재하는 Key의 TTL만 갱신합니다. (EXPIRE) 값은 그대로 유지됩니다.
+	 */
+	public void expire(String key, Duration ttl) {
+		redisTemplate.expire(key, ttl);
+	}
+
+	/**
+	 * Key들을 삭제합니다. (DEL)
+	 */
+	public void delete(List<String> keys) {
+		redisTemplate.delete(keys);
 	}
 }

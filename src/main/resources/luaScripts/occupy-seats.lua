@@ -1,5 +1,6 @@
--- 여러 좌석을 한 번에 원자적으로 점유(선점) 처리한다. 다른 사용자가 점유한 좌석이 하나라도 있으면 전체 실패(all-or-nothing).
--- KEYS: 점유할 좌석들의 Redis Key 목록
+-- 여러 좌석을 한 번에 원자적으로 점유(선점) 처리한다.
+-- 다른 사용자가 점유한 좌석이 하나라도 있으면 전체 실패 (all-or-nothing).
+-- KEYS: 점유할 좌석들의 occupy Key 목록
 -- ARGV[1]: 점유자 userId
 -- ARGV[2]: 점유 유지 TTL(초)
 local userId = ARGV[1]

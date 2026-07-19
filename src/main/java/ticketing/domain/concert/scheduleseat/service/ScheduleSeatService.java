@@ -73,6 +73,7 @@ public class ScheduleSeatService {
 			.map(ScheduleSeatRedisKeys::occupyKey)
 			.toList();
 
+		// 점유 스크립트 실행
 		Long occupied = redisUtil.execute(
 			OCCUPY_SCRIPT,
 			occupyKeys,						// 점유하려는 좌석

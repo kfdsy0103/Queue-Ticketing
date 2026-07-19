@@ -1,5 +1,6 @@
 package ticketing.domain.order.order.service;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -24,6 +25,8 @@ import ticketing.domain.order.order.entity.Order;
 import ticketing.domain.order.order.exception.OrderErrorCode;
 import ticketing.domain.order.order.repository.OrderRepository;
 import ticketing.domain.order.orderitem.entity.OrderItem;
+import ticketing.domain.order.orderitem.entity.OrderItemHistory;
+import ticketing.domain.order.orderitem.repository.OrderItemHistoryRepository;
 import ticketing.domain.order.orderitem.repository.OrderItemRepository;
 import ticketing.domain.payment.client.KakaoPayApiClient;
 import ticketing.domain.payment.client.dto.KakaoPayApproveRequest;
@@ -49,10 +52,13 @@ public class OrderCommandService {
 	private static final RedisScript<Long> VERIFY_OCCUPY_SCRIPT =
 		RedisScript.of(new ClassPathResource("luaScripts/verify-occupy.lua"), Long.class);
 
+	private static final Duration RESERVED_TTL = Duration.ofDays(1);
+
 	private final OrderRepository orderRepository;
 	private final UserRepository userRepository;
 	private final ScheduleSeatRepository scheduleSeatRepository;
 	private final OrderItemRepository orderItemRepository;
+	private final OrderItemHistoryRepository orderItemHistoryRepository;
 	private final SchedulePriceRepository schedulePriceRepository;
 	private final PaymentRepository paymentRepository;
 	private final KakaoPayApiClient kakaoPayApiClient;
@@ -79,6 +85,7 @@ public class OrderCommandService {
 			command.getUserId().toString()
 		);
 
+		// 좌석 점유 유효 시간(5분)이 지났거나, 본인 것이 아님
 		if (occupiedByMe == null || occupiedByMe != 1L) {
 			throw new GeneralException(ScheduleSeatErrorCode.NOT_OCCUPIED_BY_USER);
 		}
@@ -130,6 +137,10 @@ public class OrderCommandService {
 			.totalPrice(totalPrice)
 			.build();
 		paymentRepository.save(payment);
+
+		// 주문이 처리 중/완료 상태로 존재하는 동안 재점유되지 않도록 점유 Key의 TTL을 연장
+		command.getScheduleSeatIds().forEach(scheduleSeatId ->
+			redisUtil.expire(ScheduleSeatRedisKeys.occupyKey(scheduleSeatId), RESERVED_TTL));
 
 		return CreateDTO.Result.builder()
 			.orderId(order.getId())
@@ -237,10 +248,22 @@ public class OrderCommandService {
 		// 카카오페이 전체 취소(잔여 결제 금액 기준) - 외부 API 호출
 		kakaoPayApiClient.cancel(payment.getTid(), order.getTotalPrice());
 
-		// 남은 모든 주문 항목의 좌석을 AVAILABLE로 되돌리고 항목 삭제
+		// 남은 모든 주문 항목의 좌석을 AVAILABLE로 되돌리고 항목 삭제 (삭제 전 감사 이력 기록)
 		List<OrderItem> orderItems = orderItemRepository.findAllByOrderIdWithScheduleSeat(order.getId());
 		orderItems.forEach(orderItem -> orderItem.getScheduleSeat().cancel());
+
+		List<OrderItemHistory> orderItemHistories = orderItems.stream()
+			.map(orderItem -> OrderItemHistory.from(orderItem, OrderItemHistory.Reason.CANCELLED_ALL))
+			.toList();
+		orderItemHistoryRepository.saveAll(orderItemHistories);
+
 		orderItemRepository.deleteAll(orderItems);
+
+		// 주문이 종료되었으므로 재점유를 막던 점유 Key 해제
+		List<String> occupyKeys = orderItems.stream()
+			.map(orderItem -> ScheduleSeatRedisKeys.occupyKey(orderItem.getScheduleSeat().getId()))
+			.toList();
+		redisUtil.delete(occupyKeys);
 
 		order.cancel();
 

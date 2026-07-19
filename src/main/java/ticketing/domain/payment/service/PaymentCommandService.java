@@ -87,7 +87,7 @@ public class PaymentCommandService {
 		List<String> occupyKeys = orderItems.stream()
 			.map(orderItem -> ScheduleSeatRedisKeys.occupyKey(orderItem.getScheduleSeat().getId()))
 			.toList();
-		redisUtil.deleteAfterCommit(occupyKeys);
+		redisUtil.delete(occupyKeys);
 
 		order.cancel();
 
