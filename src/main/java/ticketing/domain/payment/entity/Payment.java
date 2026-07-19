@@ -58,6 +58,10 @@ public class Payment extends BaseEntity {
 		this.approvedAt = LocalDateTime.now();
 	}
 
+	public void cancel() {
+		this.status = PaymentStatus.CANCELLED;
+	}
+
 	public enum PaymentMethod {
 		KAKAO_PAY
 	}
