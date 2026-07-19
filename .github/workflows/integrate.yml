@@ -1,0 +1,88 @@
+name: CI Pipeline
+
+on:
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  pr_merge_build_test:
+    name: PR 머지 결과 검증
+    runs-on: ubuntu-latest
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_DATABASE: ticketing
+          MYSQL_ROOT_PASSWORD: 1234
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -p1234"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+      redis:
+        image: redis:7.4
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+
+    steps:
+      - name: 저장소 체크아웃 (PR head 기준)
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+
+      - name: JDK 21 설치
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+
+      - name: Gradle 실행 권한 부여
+        run: chmod +x gradlew
+
+      - name: PR 단독 테스트
+        run: |
+          echo "::notice::PR 코드 단독으로 테스트를 실행합니다."
+          ./gradlew test --no-daemon --console=plain --quiet || 
+          {
+            echo "::error::❌ PR 코드 자체에서 테스트가 실패했습니다. 재시도하여 상세 로그를 표시합니다."
+            ./gradlew test --no-daemon --console=plain --info --stacktrace
+            exit 1
+          }
+
+      - name: Git 사용자 정보 설정 (머지 시뮬레이션용)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: main 브랜치 기준 PR 머지 시뮬레이션
+        run: |
+          echo "::notice::main 브랜치 기준으로 PR 머지를 시뮬레이션합니다."
+          git fetch origin main
+          git checkout --detach origin/main
+          git merge --no-commit --no-ff ${{ github.event.pull_request.head.sha }} || 
+          {
+            echo "::error::❌ main 브랜치와 병합 중 conflict가 발생했습니다."
+            git status
+            exit 1
+          }
+
+      - name: 머지 결과 빌드 및 테스트
+        run: |
+          echo "::notice::머지된 결과 기준으로 빌드 및 테스트를 실행합니다."
+          ./gradlew build --no-daemon --console=plain --quiet || 
+          {
+            echo "::error::❌ PR 단독으로는 통과했지만 main과 머지된 결과에서 실패했습니다. 재시도하여 상세 로그를 표시합니다."
+            ./gradlew build --no-daemon --console=plain --info --stacktrace
+            exit 1
+          }
