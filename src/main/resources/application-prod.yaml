@@ -37,5 +37,5 @@ management:
   metrics:
     tags:
       application: ticketing  # Grafana에서 앱 식별용
-      instance: spring-1      # application에 대한 인스턴스 구분용
+      instance: ${INSTANCE_ID:unknown}  # EC2 인스턴스 구분용
       namespace: ticketing    # namespace
