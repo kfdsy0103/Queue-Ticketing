@@ -1,0 +1,19 @@
+services:
+  # todo: docker hub -> jar image -> 실행
+
+  node-exporter:
+    needs: # todo: 위에서 실행된 app이 needs.
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    restart: unless-stopped
+    pid: host # 컨테이너 내부가 아닌, 호스트 레벨의 프로세스를 보도록
+    network_mode: host # 네트워크도 호스트 레벨의 네트워크를 따르도록
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
