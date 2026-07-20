@@ -35,6 +35,19 @@ services:
       - monitoring
     restart: unless-stopped
 
+  # RDS(MySQL) Exporter
+  mysqld-exporter:
+    image: prom/mysqld-exporter:latest
+    container_name: mysqld-exporter
+    environment:
+      MYSQLD_EXPORTER_PASSWORD: "${RDS_EXPORTER_PASSWORD}"
+    command:
+      - "--mysqld.username=${RDS_EXPORTER_USERNAME}"
+      - "--mysqld.address=${RDS_EXPORTER_ADDRESS}"
+    networks:
+      - monitoring
+    restart: unless-stopped
+
 volumes:
   grafana-data:
 
