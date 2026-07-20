@@ -1,0 +1,41 @@
+spring:
+  datasource:
+    url: ${DB_URL}?rewriteBatchedStatements=true&useServerPrepStmts=false
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: create
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQL8Dialect
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT}
+  jwt:
+    secret: ${JWT_SECRET}
+    expiration: 1800000
+
+# Prometheus
+management:
+  endpoints:
+    web:
+      exposure:
+        include: prometheus, health, metrics, info, env, loggers
+  endpoint:
+    health:
+      show-details: always
+    prometheus:
+      access: unrestricted # unrestricted: 인증 없이 전체 접근 허용 / read-only: 읽기만 허용 / none: 비활성화
+  prometheus:
+    metrics:
+      export:
+        enabled: true
+  metrics:
+    tags:
+      application: ticketing  # Grafana에서 앱 식별용
+      instance: spring-1      # application에 대한 인스턴스 구분용
+      namespace: ticketing    # namespace
