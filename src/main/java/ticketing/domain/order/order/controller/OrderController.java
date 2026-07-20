@@ -38,7 +38,7 @@ public class OrderController {
 	 * 주문하려는 좌석 id List + PaymentMethod(KakaoPay ...)를 인자로 받아, 주문을 생성하고 Payment Client를 호출하여 결제 정보를 생성합니다.
 	 * 응답에 포함되는 redirect_url로 프론트에서는 리다이렉트시켜 결제를 처리하면 됩니다.
 	 */
-	@PostMapping
+	@PostMapping("/create")
 	public CommonResponse<CreateDTO.Response> create(@Valid @RequestBody CreateDTO.Request request, @RequestParam Long userId) {
 		log.info("[OrderController] create() 호출 - userId: {}, scheduleSeatIds: {}", userId, request.getScheduleSeatIds());
 		CreateDTO.Result result = orderCommandService.create(request.toCommand(userId));
