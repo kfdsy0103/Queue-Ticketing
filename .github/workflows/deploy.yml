@@ -56,6 +56,6 @@ jobs:
     steps:
       - name: Jenkins Job 트리거
         run: |
-          curl -f -X POST \
-            "http://${{ secrets.JENKINS_HOST }}:${{ secrets.JENKINS_PORT }}/job/${{ secrets.JENKINS_JOB_NAME }}/buildWithParameters?token=${{ secrets.JENKINS_BUILD_TOKEN }}" \
+          curl -v -X POST \
+            "http://${{ secrets.JENKINS_HOST }}:${{ secrets.JENKINS_PORT }}/buildByToken/buildWithParameters?job=${{ secrets.JENKINS_JOB_NAME }}&token=${{ secrets.JENKINS_BUILD_TOKEN }}" \
             --data-urlencode "IMAGE_TAG=${{ github.sha }}"
