@@ -34,6 +34,9 @@ pipeline {
         }
 
         stage('Deploy') {
+            environment {
+                IMAGE_TAG = "${params.IMAGE_TAG}"
+            }
             steps {
                 withCredentials([
                         string(credentialsId: 'db-url', variable: 'DB_URL'),
@@ -44,41 +47,39 @@ pipeline {
                         string(credentialsId: 'jwt-secret', variable: 'JWT_SECRET')
                 ]) {
                     sshagent(credentials: ['api-server-ssh-key']) {
-                        sh """
+                        sh '''
                             # Jenkins 워크스페이스에 .env 생성
                             cat > .env << EOF
-
-IMAGE_TAG=${params.IMAGE_TAG}
-DB_URL=${DB_URL}
-DB_USERNAME=${DB_USERNAME}
-DB_PASSWORD=${DB_PASSWORD}
-REDIS_HOST=${REDIS_HOST}
-REDIS_PORT=${REDIS_PORT}
-JWT_SECRET=${JWT_SECRET}
-INSTANCE_ID=${APP_HOST}
+IMAGE_TAG=$IMAGE_TAG
+DB_URL=$DB_URL
+DB_USERNAME=$DB_USERNAME
+DB_PASSWORD=$DB_PASSWORD
+REDIS_HOST=$REDIS_HOST
+REDIS_PORT=$REDIS_PORT
+JWT_SECRET=$JWT_SECRET
+INSTANCE_ID=$APP_HOST
 EOF
 
                             # App 서버로 .env 전송
-                            scp -o StrictHostKeyChecking=no .env ${APP_USER}@${APP_HOST}:${DEPLOY_DIR}/.env
+                            scp -o StrictHostKeyChecking=no .env $APP_USER@$APP_HOST:$DEPLOY_DIR/.env
 
                             # Jenkins 워크스페이스의 .env 즉시 삭제
                             rm -f .env
 
                             # 배포 실행
-                            ssh -o StrictHostKeyChecking=no ${APP_USER}@${APP_HOST} '
+                            ssh -o StrictHostKeyChecking=no $APP_USER@$APP_HOST "
                                 set -e
-                                cd ${DEPLOY_DIR}
+                                cd $DEPLOY_DIR
                                 chmod 600 .env
                                 docker compose pull
                                 docker compose up -d --remove-orphans
                                 docker image prune -f
-                            '
-                        """
+                            "
+                        '''
                     }
                 }
             }
         }
-
 
         stage('Health Check') {
             steps {
