@@ -1,8 +1,16 @@
 services:
-  # todo: docker hub -> jar image -> 실행
+  app:
+    image: ${DOCKER_REPOSITORY}:${IMAGE_TAG}
+    container_name: ticketing-api
+    env_file:
+      - .env
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
 
   node-exporter:
-    needs: # todo: 위에서 실행된 app이 needs.
+    depends_on:
+      - app
     image: prom/node-exporter:latest
     container_name: node-exporter
     restart: unless-stopped
