@@ -6,11 +6,11 @@ pipeline {
     }
 
     environment {
-        IMAGE_NAME  =    // Docker Hub
-        APP_HOST    =    // Application 서버 Private IP
-        APP_USER    =
-        DEPLOY_DIR  =
-        HEALTH_URL  =
+        DOCKER_REPOSITORY  =    // Docker Hub
+        APP_HOST           =    // Application 서버 Private IP
+        APP_USER           =
+        DEPLOY_DIR         =
+        HEALTH_URL         =
     }
 
     options {
@@ -27,7 +27,7 @@ pipeline {
                     if (params.IMAGE_TAG?.trim() in [null, '', 'latest']) {
                         echo "⚠️  IMAGE_TAG가 'latest'입니다. 롤백 추적을 위해 커밋 SHA 사용을 권장합니다."
                     }
-                    echo "배포 대상: ${IMAGE_NAME}:${params.IMAGE_TAG} → ${APP_HOST}"
+                    echo "배포 대상: ${DOCKER_REPOSITORY}:${params.IMAGE_TAG} → ${APP_HOST}"
                     currentBuild.displayName = "#${BUILD_NUMBER} - ${params.IMAGE_TAG}"
                 }
             }
@@ -40,8 +40,7 @@ pipeline {
             steps {
                 withCredentials([
                         string(credentialsId: 'db-url', variable: 'DB_URL'),
-                        usernamePassword(credentialsId: 'db-credentials',
-                                usernameVariable: 'DB_USERNAME', passwordVariable: 'DB_PASSWORD'),
+                        usernamePassword(credentialsId: 'db-credentials', usernameVariable: 'DB_USERNAME', passwordVariable: 'DB_PASSWORD'),
                         string(credentialsId: 'redis-host', variable: 'REDIS_HOST'),
                         string(credentialsId: 'redis-port', variable: 'REDIS_PORT'),
                         string(credentialsId: 'jwt-secret', variable: 'JWT_SECRET')
@@ -51,6 +50,7 @@ pipeline {
                             # Jenkins 워크스페이스에 .env 생성
                             cat > .env << EOF
 IMAGE_TAG=$IMAGE_TAG
+DOCKER_REPOSITORY=$DOCKER_REPOSITORY
 DB_URL=$DB_URL
 DB_USERNAME=$DB_USERNAME
 DB_PASSWORD=$DB_PASSWORD
@@ -87,7 +87,7 @@ EOF
                     def ok = false
                     for (int i = 1; i <= 12; i++) {
                         def code = sh(
-                                script: "curl -s -o /dev/null -w '%{http_code}' --max-time 3 ${HEALTH_URL} || true",
+                                script: '''curl -s -o /dev/null -w '%{http_code}' --max-time 3 $HEALTH_URL || true''',
                                 returnStdout: true
                         ).trim()
                         echo "헬스체크 시도 ${i}/12 → HTTP ${code}"
@@ -105,20 +105,20 @@ EOF
 
     post {
         success {
-            echo "배포 성공: ${IMAGE_NAME}:${params.IMAGE_TAG}"
+            echo "배포 성공: ${DOCKER_REPOSITORY}:${params.IMAGE_TAG}"
         }
         failure {
-            echo "배포 실패: ${IMAGE_NAME}:${params.IMAGE_TAG}"
+            echo "배포 실패: ${DOCKER_REPOSITORY}:${params.IMAGE_TAG}"
             sshagent(credentials: ['api-server-ssh-key']) {
-                sh """
-                    ssh -o StrictHostKeyChecking=no ${APP_USER}@${APP_HOST} '
-                        cd ${DEPLOY_DIR}
-                        echo "===== 컨테이너 상태 ====="
+                sh '''
+                    ssh -o StrictHostKeyChecking=no $APP_USER@$APP_HOST "
+                        cd $DEPLOY_DIR
+                        echo '===== 컨테이너 상태 ====='
                         docker compose ps
-                        echo "===== 최근 로그 100줄 ====="
+                        echo '===== 최근 로그 100줄 ====='
                         docker compose logs --tail=100 app
-                    ' || true
-                """
+                    " || true
+                '''
             }
         }
         always {
