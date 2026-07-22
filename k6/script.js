@@ -1,4 +1,16 @@
-// K6_WEB_DASHBOARD=true k6 run -e BASE_URL=http://localhost:8080 -e CONCERT_SCHEDULE_ID=1 -e SEAT_COUNT=100 -e TARGET=100 -e DURATION=5m script.js
+// [.env]
+// K6_WEB_DASHBOARD=true                                                  # 실시간 웹 대시보드 노출
+// K6_PROMETHEUS_RW_SERVER_URL=http://<prometheus-host>:9090/api/v1/write # Prometheus 원격 Write
+// K6_PROMETHEUS_RW_TREND_STATS=p(90),p(95),p(99),min,max,avg             # Trend 전송
+// BASE_URL=https://...                                                   # API 서버 URL
+// CONCERT_SCHEDULE_ID=1                                                  # 콘서트 회차 ID
+// SEAT_COUNT=100                                                         # 전체 좌석 수
+// TARGET=100                                                             # Vuser 수
+// DURATION=5m                                                            # 테스트 지속 시간
+//
+// [커맨드]
+// set -a && source .env
+// k6 run -o experimental-prometheus-rw script.js
 
 import http from 'k6/http';
 import { check, sleep } from 'k6';
