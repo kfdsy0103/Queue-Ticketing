@@ -33,9 +33,9 @@ public class QueueController {
 	}
 
 	@GetMapping("/status")
-	public CommonResponse<StatusDTO.Response> status(@Valid @RequestBody StatusDTO.Request request, @RequestParam Long userId) {
+	public CommonResponse<StatusDTO.Response> status(@RequestParam Long userId, @RequestParam String token) {
 		log.info("[QueueController] status() 호출 - userId: {}", userId);
-		StatusDTO.Result result = queueService.status(request.toCommand(userId));
+		StatusDTO.Result result = queueService.status(StatusDTO.Command.of(userId, token));
 		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
 	}
 
