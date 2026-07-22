@@ -1,0 +1,117 @@
+// K6_WEB_DASHBOARD=true k6 run -e BASE_URL=http://localhost:8080 -e CONCERT_SCHEDULE_ID=1 -e SEAT_COUNT=100 -e TARGET=100 -e DURATION=5m script.js
+
+import http from 'k6/http';
+import { check, sleep } from 'k6';
+import { Trend } from 'k6/metrics';
+
+const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';         // API 서버
+const CONCERT_SCHEDULE_ID = __ENV.CONCERT_SCHEDULE_ID || '1';       // 콘서트 회차 ID
+const SEAT_COUNT = Number(__ENV.SEAT_COUNT || '100'); // 전체 좌석 수
+
+const enterDuration = new Trend('enter_duration', true);      // 대기열 진입
+const statusDuration = new Trend('status_duration', true);    // 대기열 내 상태 조회
+const seatsDuration = new Trend('seats_duration', true);      // 전체 좌석 조회
+const occupyDuration = new Trend('occupy_duration', true);    // 좌석 점유 시도
+const orderDuration = new Trend('order_duration', true);      // 주문 생성
+const confirmDuration = new Trend('confirm_duration', true);  // 주문 확정
+
+export const options = {
+  stages: [
+    { target: Number(__ENV.TARGET || '100'), duration: __ENV.DURATION || '5m' },
+  ],
+};
+
+const JSON_HEADERS = { headers: { 'Content-Type': 'application/json' } };
+
+// 1~4개 좌석을 랜덤 선택하는 유틸 메서드
+function pickRandomSeatIds() {
+  const count = Math.floor(Math.random() * 4) + 1;
+  const seatIds = new Set();
+  while (seatIds.size < count) {
+    seatIds.add(Math.floor(Math.random() * SEAT_COUNT) + 1);
+  }
+  return [...seatIds];
+}
+
+// 시나리오
+export default function () {
+  const userId = __VU;
+
+  // 1. 대기열 진입
+  const enterRes = http.post(
+    `${BASE_URL}/api/v1/queue/enter?userId=${userId}`,
+    JSON.stringify({ concertScheduleId: Number(CONCERT_SCHEDULE_ID), enterType: 'JOIN' }),
+    JSON_HEADERS
+  );
+  enterDuration.add(enterRes.timings.duration);
+  check(enterRes, { 'enter 201': (r) => r.status === 201 });
+
+  const queueToken = enterRes.json('result.token');
+  if (!queueToken) {
+    return;
+  }
+
+  // 2. 활성화(Active)될 때까지 상태 폴링
+  while (true) {
+    const statusRes = http.get(
+      `${BASE_URL}/api/v1/queue/status?userId=${userId}&token=${queueToken}`
+    );
+    statusDuration.add(statusRes.timings.duration);
+    check(statusRes, { 'status 200': (r) => r.status === 200 });
+
+    if (statusRes.json('result.isActive') === true) {
+      break;
+    }
+    sleep((statusRes.json('result.retryAfterMs') || 1000) / 1000);   // 서버에서 내려주는 주기로 폴링
+  }
+
+  // 3. 전체 좌석 조회 및 좌석 점유 시도 (점유에 실패하면 사용자는 좌석 조회를 새롭게 하게 될 것)
+  let seatIds;
+  while (true) {
+    // 3-1. 전체 좌석 조회
+    const seatsRes = http.get(
+      `${BASE_URL}/api/v1/concert-schedules/${CONCERT_SCHEDULE_ID}/schedule-seats?userId=${userId}&token=${queueToken}`
+    );
+    seatsDuration.add(seatsRes.timings.duration);
+    check(seatsRes, { 'seats 200': (r) => r.status === 200 });
+
+    // 3-2. 좌석 점유 시도
+    seatIds = pickRandomSeatIds();
+    const occupyRes = http.post(
+      `${BASE_URL}/api/v1/concert-schedules/${CONCERT_SCHEDULE_ID}/schedule-seats/occupy?userId=${userId}`,
+      JSON.stringify({ scheduleSeatIds: seatIds, token: queueToken }),
+      JSON_HEADERS
+    );
+    occupyDuration.add(occupyRes.timings.duration);
+    if (check(occupyRes, { 'occupy 200': (r) => r.status === 200 })) {
+      break;
+    }
+
+    sleep(1);
+  }
+
+  // 4. 주문 생성
+  const orderRes = http.post(
+    `${BASE_URL}/api/v1/orders/create?userId=${userId}`,
+    JSON.stringify({ scheduleSeatIds: seatIds, paymentMethod: 'KAKAO_PAY' }),
+    JSON_HEADERS
+  );
+  orderDuration.add(orderRes.timings.duration);
+  check(orderRes, { 'order 201': (r) => r.status === 201 });
+
+  const orderId = orderRes.json('result.orderId');
+  if (!orderId) {
+    return;
+  }
+
+  // 5. 결제 확정
+  const confirmRes = http.post(
+    `${BASE_URL}/api/v1/orders/${orderId}/confirm?userId=${userId}`,
+    JSON.stringify({ pgToken: 'mock_pg_token' }),
+    JSON_HEADERS
+  );
+  confirmDuration.add(confirmRes.timings.duration);
+  check(confirmRes, { 'confirm 200': (r) => r.status === 200 });
+
+  sleep(1);
+}
