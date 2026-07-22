@@ -19,16 +19,30 @@ public final class QueueRedisKeys {
 	}
 
 	/**
-	 * 사용자별 세션 정보 Hash. (field: userId, value: queueSessionId)
+	 * 사용자별 세션 정보 Key 접두어. Lua 스크립트에서 뒤에 userId를 붙여 사용합니다.
 	 */
-	public static String userInfoKey(Long concertScheduleId) {
-		return waitingKey(concertScheduleId) + ":info";
+	public static String userInfoKeyPrefix(Long concertScheduleId) {
+		return waitingKey(concertScheduleId) + ":info:";
 	}
 
 	/**
-	 * 작업열(Active) 사용자 목록 Hash. (field: userId, value: queueSessionId, 필드별 TTL은 HEXPIRE로 관리, Redis 7.4+)
+	 * 사용자별 세션 정보 String Key. (value: queueSessionId, TTL은 EXPIRE로 관리)
 	 */
-	public static String activeKey(Long concertScheduleId) {
-		return waitingKey(concertScheduleId) + ":active";
+	public static String userInfoKey(Long concertScheduleId, Long userId) {
+		return userInfoKeyPrefix(concertScheduleId) + userId;
+	}
+
+	/**
+	 * 작업열(Active) 사용자 Key 접두어. Lua 스크립트에서 뒤에 userId를 붙여 사용합니다.
+	 */
+	public static String activeKeyPrefix(Long concertScheduleId) {
+		return waitingKey(concertScheduleId) + ":active:";
+	}
+
+	/**
+	 * 작업열(Active) 사용자별 String Key. (value: queueSessionId, TTL은 EXPIRE로 관리)
+	 */
+	public static String activeKey(Long concertScheduleId, Long userId) {
+		return activeKeyPrefix(concertScheduleId) + userId;
 	}
 }

@@ -47,39 +47,25 @@ public class RedisUtil {
 	}
 
 	/**
-	 * Hash 필드 값 조회.
+	 * String 값 조회. (GET)
 	 */
-	public String hGet(String key, String hashKey) {
-		Object value = redisTemplate.opsForHash().get(key, hashKey);
+	public String get(String key) {
+		Object value = redisTemplate.opsForValue().get(key);
 		return value != null ? value.toString() : null;
 	}
 
 	/**
-	 * Hash 필드 값 저장.
+	 * String 값을 TTL과 함께 저장합니다. (SET + EX)
 	 */
-	public void hSet(String key, String hashKey, String value) {
-		redisTemplate.opsForHash().put(key, hashKey, value);
+	public void set(String key, String value, Duration ttl) {
+		redisTemplate.opsForValue().set(key, value, ttl);
 	}
 
 	/**
-	 * Hash 필드의 존재 여부를 확인합니다. (HEXISTS)
+	 * Key를 삭제합니다. (DEL)
 	 */
-	public boolean hHasKey(String key, String hashKey) {
-		return redisTemplate.opsForHash().hasKey(key, hashKey);
-	}
-
-	/**
-	 * Hash 필드를 삭제합니다. (HDEL)
-	 */
-	public void hDelete(String key, String hashKey) {
-		redisTemplate.opsForHash().delete(key, hashKey);
-	}
-
-	/**
-	 * Hash 필드 단위로 TTL을 설정합니다. (HEXPIRE)
-	 */
-	public void hExpire(String key, String hashKey, Duration ttl) {
-		redisTemplate.opsForHash().expire(key, ttl, List.of(hashKey));
+	public void delete(String key) {
+		redisTemplate.delete(key);
 	}
 
 	/**

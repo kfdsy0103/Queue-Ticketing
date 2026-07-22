@@ -1,9 +1,12 @@
 package ticketing.domain.queue.service;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
@@ -32,6 +35,9 @@ public class QueueService {
 	private static final String REDIRECT_ENDPOINT = "/frontend/booking";
 	private static final Duration SESSION_TTL = Duration.ofMinutes(3);
 	private static final Duration ACTIVE_TTL = Duration.ofMinutes(7);
+	private static final long PROMOTION_BATCH_SIZE = 100;
+	private static final RedisScript<Long> PROMOTE_SCRIPT =
+		RedisScript.of(new ClassPathResource("luaScripts/promote-queue.lua"), Long.class);
 
 	private final UserRepository userRepository;
 	private final RedisUtil redisUtil;
@@ -49,12 +55,12 @@ public class QueueService {
 
 		String waitingKey = QueueRedisKeys.waitingKey(command.getConcertScheduleId());	// 대기열 Key
 		String counterKey = QueueRedisKeys.counterKey(command.getConcertScheduleId());	// 카운터 Key
-		String activeKey = QueueRedisKeys.activeKey(command.getConcertScheduleId());	// 대기열 -> 작업열 Key
-		String userInfoKey = QueueRedisKeys.userInfoKey(command.getConcertScheduleId());
+		String activeKey = QueueRedisKeys.activeKey(command.getConcertScheduleId(), user.getId());	// 대기열 -> 작업열 Key
+		String userInfoKey = QueueRedisKeys.userInfoKey(command.getConcertScheduleId(), user.getId());
 
 		// 1. EnterType이 JOIN(일반적인 예매하기 버튼)인 경우 -> 이미 대기열에 있거나 Active로 전환되었는지 확인 (만약 있다면 모달창 예외)
 		if (command.getEnterType() == EnterType.JOIN) {
-			boolean alreadyActive = redisUtil.hHasKey(activeKey, user.getId().toString());
+			boolean alreadyActive = redisUtil.hasKey(activeKey);
 			boolean alreadyWaiting = redisUtil.zRank(waitingKey, user.getId()) != null;
 			if (alreadyActive || alreadyWaiting) {
 				throw new GeneralException(QueueErrorCode.ALREADY_JOINED);
@@ -64,7 +70,7 @@ public class QueueService {
 		// 2. EnterType이 REJOIN(모달창에서 새로 입장하기)이면 대기열 및 Active 슬롯을 여기서 제거 하도록.
 		if (command.getEnterType() == EnterType.REJOIN) {
 			redisUtil.opsForZSet().remove(waitingKey, user.getId());
-			redisUtil.hDelete(activeKey, user.getId().toString());
+			redisUtil.delete(activeKey);
 		}
 
 		// 3. 이후 줄서기
@@ -72,8 +78,7 @@ public class QueueService {
 
 		long score = redisUtil.increment(counterKey);
 		redisUtil.zAdd(waitingKey, user.getId(), score);
-		redisUtil.hSet(userInfoKey, user.getId().toString(), queueSessionId);	// 소유 중인 화면
-		redisUtil.hExpire(userInfoKey, user.getId().toString(), SESSION_TTL);	// TTL 설정
+		redisUtil.set(userInfoKey, queueSessionId, SESSION_TTL);	// 소유 중인 화면 (값 + TTL 설정)
 
 		String token = jwtTokenUtil.generateToken(Map.of(
 			"userId", user.getId(),
@@ -109,10 +114,10 @@ public class QueueService {
 		// 기존 userRepository.find().orElseThrow 구문은 시큐리티 단에서 이미 처리되어 검증된 상태이므로, 매 폴링마다 반복할 필요 X
 
 		String waitingKey = QueueRedisKeys.waitingKey(concertScheduleId);
-		String userInfoKey = QueueRedisKeys.userInfoKey(concertScheduleId);
-		String activeKey = QueueRedisKeys.activeKey(concertScheduleId);
+		String userInfoKey = QueueRedisKeys.userInfoKey(concertScheduleId, userId);
+		String activeKey = QueueRedisKeys.activeKey(concertScheduleId, userId);
 
-		String storedSessionId = redisUtil.hGet(userInfoKey, userId.toString());
+		String storedSessionId = redisUtil.get(userInfoKey);
 		if (storedSessionId == null) {
 			throw new GeneralException(QueueErrorCode.NOT_IN_QUEUE);	// 이미 처리된 경우
 		}
@@ -120,10 +125,10 @@ public class QueueService {
 			throw new GeneralException(QueueErrorCode.SESSION_REVOKED);	// 다른 화면에서 예매를 이어받은 경우 (기존 화면은 종료)
 		}
 
-		redisUtil.hExpire(userInfoKey, userId.toString(), SESSION_TTL);	// TTL 연장 하트비트
+		redisUtil.expire(userInfoKey, SESSION_TTL);	// TTL 연장 하트비트
 
 		// Active 상태인지 확인 후에 return;
-		boolean isActive = redisUtil.hHasKey(activeKey, userId.toString());
+		boolean isActive = redisUtil.hasKey(activeKey);
 		long rank = safeRank(redisUtil.zRank(waitingKey, userId));
 		long retryAfterMs = JitterUtil.nextPollIntervalMillis(rank);
 
@@ -145,10 +150,10 @@ public class QueueService {
 			.orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
 
 		String waitingKey = QueueRedisKeys.waitingKey(command.getConcertScheduleId());
-		String userInfoKey = QueueRedisKeys.userInfoKey(command.getConcertScheduleId());
-		String activeKey = QueueRedisKeys.activeKey(command.getConcertScheduleId());
+		String userInfoKey = QueueRedisKeys.userInfoKey(command.getConcertScheduleId(), user.getId());
+		String activeKey = QueueRedisKeys.activeKey(command.getConcertScheduleId(), user.getId());
 
-		boolean isActive = redisUtil.hHasKey(activeKey, user.getId().toString());
+		boolean isActive = redisUtil.hasKey(activeKey);
 		boolean isWaiting = redisUtil.zRank(waitingKey, user.getId()) != null;
 		if (!isActive && !isWaiting) {
 			throw new GeneralException(QueueErrorCode.NOT_IN_QUEUE);
@@ -156,14 +161,12 @@ public class QueueService {
 
 		// 기존 화면 종료를 위한 queueSessionId 갱신 (순번/활성 상태는 그대로 유지)
 		String queueSessionId = UUID.randomUUID().toString();
-		redisUtil.hSet(userInfoKey, user.getId().toString(), queueSessionId);
-		redisUtil.hExpire(userInfoKey, user.getId().toString(), SESSION_TTL);	// TTL 하트비트
+		redisUtil.set(userInfoKey, queueSessionId, SESSION_TTL);	// 값 갱신 + TTL 하트비트
 
 		// Active로 대기열 통과했으면 점유 작업 시에도 sessionId 영향받도록 반영
-		isActive = redisUtil.hHasKey(activeKey, user.getId().toString());
+		isActive = redisUtil.hasKey(activeKey);
 		if (isActive) {
-			redisUtil.hSet(activeKey, user.getId().toString(), queueSessionId);
-			redisUtil.hExpire(activeKey, user.getId().toString(), ACTIVE_TTL);
+			redisUtil.set(activeKey, queueSessionId, ACTIVE_TTL);
 		}
 
 		String token = jwtTokenUtil.generateToken(Map.of(
@@ -189,6 +192,26 @@ public class QueueService {
 			.retryAfterMs(retryAfterMs)
 			.isActive(false)
 			.build();
+	}
+
+	/**
+	 * concertSchedulerId에 해당하는 대기열의 앞 쪽에서 PROMOTION_BATCH_SIZE 만큼을 작업열로 이동시킵니다.
+	 * 이때, ZPOPMIN + 작업열 등록은 Lua로 처리합니다.
+	 * 	이는 Enter API에서 발생하는 상태 체크 시 Race Condition을 방지하기 위함입니다.
+	 */
+	public Long promote(Long concertScheduleId) {
+
+		String waitingKey = QueueRedisKeys.waitingKey(concertScheduleId);
+		String activeKeyPrefix = QueueRedisKeys.activeKeyPrefix(concertScheduleId);
+		String userInfoKeyPrefix = QueueRedisKeys.userInfoKeyPrefix(concertScheduleId);
+
+		// '대기열 -> 작업열로 Active 활성화'
+		return redisUtil.execute(
+			PROMOTE_SCRIPT,
+			List.of(waitingKey, activeKeyPrefix, userInfoKeyPrefix),
+			PROMOTION_BATCH_SIZE,
+			ACTIVE_TTL.toSeconds()
+		);
 	}
 
 	/**

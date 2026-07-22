@@ -59,8 +59,8 @@ public class ScheduleSeatService {
 
 		// 유저가 해당 회차의 대기열을 통과(Active)했고, 최신 화면(sessionId)의 요청인지 확인
 		Long concertScheduleId = scheduleSeats.getFirst().getConcertSchedule().getId();
-		String activeKey = QueueRedisKeys.activeKey(concertScheduleId);
-		String storedSessionId = redisUtil.hGet(activeKey, command.getUserId().toString());
+		String activeKey = QueueRedisKeys.activeKey(concertScheduleId, command.getUserId());
+		String storedSessionId = redisUtil.get(activeKey);
 		if (storedSessionId == null) {
 			throw new GeneralException(QueueErrorCode.NOT_ACTIVE);
 		}
@@ -104,7 +104,7 @@ public class ScheduleSeatService {
 
 		// 유저가 해당 회차의 대기열을 통과(Active)했고, 최신 화면(sessionId)의 요청인지 확인
 		Long concertScheduleId = scheduleSeat.getConcertSchedule().getId();
-		String storedSessionId = redisUtil.hGet(QueueRedisKeys.activeKey(concertScheduleId), command.getUserId().toString());
+		String storedSessionId = redisUtil.get(QueueRedisKeys.activeKey(concertScheduleId, command.getUserId()));
 		if (storedSessionId == null) {
 			throw new GeneralException(QueueErrorCode.NOT_ACTIVE);
 		}
@@ -139,7 +139,7 @@ public class ScheduleSeatService {
 		}
 
 		// 유저가 해당 회차의 대기열을 통과(Active)했고, 최신 화면(sessionId)의 요청인지 확인
-		String storedSessionId = redisUtil.hGet(QueueRedisKeys.activeKey(command.getConcertScheduleId()), command.getUserId().toString());
+		String storedSessionId = redisUtil.get(QueueRedisKeys.activeKey(command.getConcertScheduleId(), command.getUserId()));
 		if (storedSessionId == null) {
 			throw new GeneralException(QueueErrorCode.NOT_ACTIVE);
 		}
