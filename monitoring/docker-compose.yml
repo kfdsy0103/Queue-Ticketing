@@ -48,6 +48,17 @@ services:
       - monitoring
     restart: unless-stopped
 
+  # Redis Exporter
+  redis-exporter:
+    image: oliver006/redis_exporter:latest
+    container_name: redis-exporter
+    environment:
+      REDIS_ADDR: "${REDIS_EXPORTER_ADDR}"
+      REDIS_PASSWORD: "${REDIS_EXPORTER_PASSWORD:-}"
+    networks:
+      - monitoring
+    restart: unless-stopped
+
 volumes:
   grafana-data:
 
