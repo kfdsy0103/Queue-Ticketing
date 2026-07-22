@@ -33,7 +33,7 @@ public class TakeoverDTO {
 	public static class Result {
 		String token;
 		long rank;
-		long pollingIntervalMs;
+		long retryAfterMs;
 		boolean isActive;
 		String redirectEndpoint;
 
@@ -41,7 +41,7 @@ public class TakeoverDTO {
 			return Response.builder()
 				.token(token)
 				.rank(rank)
-				.pollingIntervalMs(pollingIntervalMs)
+				.retryAfterMs(retryAfterMs)
 				.isActive(isActive)
 				.redirectEndpoint(redirectEndpoint)
 				.build();
@@ -53,7 +53,7 @@ public class TakeoverDTO {
 	public static class Response {
 		String token;
 		long rank;
-		long pollingIntervalMs;
+		long retryAfterMs;
 		boolean isActive;
 		String redirectEndpoint;
 	}

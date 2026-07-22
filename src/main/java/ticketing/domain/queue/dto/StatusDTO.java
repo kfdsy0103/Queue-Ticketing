@@ -33,14 +33,14 @@ public class StatusDTO {
 	@Builder
 	public static class Result {
 		long rank;
-		long pollingIntervalMs;
+		long retryAfterMs;
 		boolean isActive;
 		String redirectEndpoint;
 
 		public StatusDTO.Response toResponse() {
 			return Response.builder()
 				.rank(rank)
-				.pollingIntervalMs(pollingIntervalMs)
+				.retryAfterMs(retryAfterMs)
 				.isActive(isActive)
 				.redirectEndpoint(redirectEndpoint)
 				.build();
@@ -51,7 +51,7 @@ public class StatusDTO {
 	@Builder
 	public static class Response {
 		long rank;
-		long pollingIntervalMs;
+		long retryAfterMs;
 		boolean isActive;
 		String redirectEndpoint;
 	}

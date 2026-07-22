@@ -82,12 +82,12 @@ public class QueueService {
 		));
 
 		long rank = safeRank(redisUtil.zRank(waitingKey, user.getId()));
-		long pollingIntervalMs = JitterUtil.nextPollIntervalMillis(rank);
+		long retryAfterMs = JitterUtil.nextPollIntervalMillis(rank);
 
 		return EnterDTO.Result.builder()
 			.token(token)
 			.rank(rank)
-			.pollingIntervalMs(pollingIntervalMs)
+			.retryAfterMs(retryAfterMs)
 			.build();
 	}
 
@@ -125,11 +125,11 @@ public class QueueService {
 		// Active 상태인지 확인 후에 return;
 		boolean isActive = redisUtil.hHasKey(activeKey, userId.toString());
 		long rank = safeRank(redisUtil.zRank(waitingKey, userId));
-		long pollingIntervalMs = JitterUtil.nextPollIntervalMillis(rank);
+		long retryAfterMs = JitterUtil.nextPollIntervalMillis(rank);
 
 		return StatusDTO.Result.builder()
 			.rank(rank)
-			.pollingIntervalMs(pollingIntervalMs)
+			.retryAfterMs(retryAfterMs)
 			.isActive(isActive)
 			.build();
 	}
@@ -181,12 +181,12 @@ public class QueueService {
 		}
 
 		long rank = safeRank(redisUtil.zRank(waitingKey, user.getId()));
-		long pollingIntervalMs = JitterUtil.nextPollIntervalMillis(rank);
+		long retryAfterMs = JitterUtil.nextPollIntervalMillis(rank);
 
 		return TakeoverDTO.Result.builder()
 			.token(token)
 			.rank(rank)
-			.pollingIntervalMs(pollingIntervalMs)
+			.retryAfterMs(retryAfterMs)
 			.isActive(false)
 			.build();
 	}

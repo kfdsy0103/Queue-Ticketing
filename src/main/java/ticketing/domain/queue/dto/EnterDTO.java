@@ -38,13 +38,13 @@ public class EnterDTO {
 	public static class Result {
 		String token;
 		long rank;
-		long pollingIntervalMs;
+		long retryAfterMs;
 
 		public Response toResponse() {
 			return Response.builder()
 				.token(token)
 				.rank(rank)
-				.pollingIntervalMs(pollingIntervalMs)
+				.retryAfterMs(retryAfterMs)
 				.build();
 		}
 	}
@@ -54,6 +54,6 @@ public class EnterDTO {
 	public static class Response {
 		String token;
 		long rank;
-		long pollingIntervalMs;
+		long retryAfterMs;
 	}
 }
