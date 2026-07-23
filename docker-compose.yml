@@ -6,6 +6,20 @@ services:
       - .env
     ports:
       - "8080:8080"
+    volumes:
+      - ./logs:/app/logs  # EC2에 로그 파일 마운트 (alloy도 동일한 바인드 마운트해야함에 유의)
+    restart: unless-stopped
+
+  alloy:
+    image: grafana/alloy:latest
+    container_name: alloy
+    environment:
+      - ALLOY_ENV=prod  # alloy config에서 운영 환경을 인식하고 라벨로 활용하기 위함
+    ports:
+      - "12345:12345"
+    volumes:
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro   # alloy config 마운트
+      - ./logs:/var/log/spring:ro   # spring에서 logback이 남기는 파일 로그를 읽기 위함 (app도 ./logs로 바인드 마운트했음에 유의)
     restart: unless-stopped
 
   node-exporter:
