@@ -14,7 +14,7 @@
 
 import http from 'k6/http';
 import { check, sleep } from 'k6';
-import { Trend } from 'k6/metrics';
+import { Counter, Trend } from 'k6/metrics';
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';         // API 서버
 const CONCERT_SCHEDULE_ID = __ENV.CONCERT_SCHEDULE_ID || '1';       // 콘서트 회차 ID
@@ -26,6 +26,8 @@ const seatsDuration = new Trend('seats_duration', true);      // 전체 좌석 �
 const occupyDuration = new Trend('occupy_duration', true);    // 좌석 점유 시도
 const orderDuration = new Trend('order_duration', true);      // 주문 생성
 const confirmDuration = new Trend('confirm_duration', true);  // 주문 확정
+
+const errorCount = new Counter('error_count');  // 요청 실패 Counter
 
 export const options = {
   stages: [
@@ -58,8 +60,15 @@ export default function () {
   enterDuration.add(enterRes.timings.duration);
   check(enterRes, { 'enter 201': (r) => r.status === 201 });
 
+  if (enterRes.status !== 201) {
+    errorCount.add(1);
+    sleep(1);
+    return;
+  }
+
   const queueToken = enterRes.json('result.token');
   if (!queueToken) {
+    sleep(1);
     return;
   }
 
@@ -70,6 +79,12 @@ export default function () {
     );
     statusDuration.add(statusRes.timings.duration);
     check(statusRes, { 'status 200': (r) => r.status === 200 });
+
+    if (statusRes.status !== 200) {
+      errorCount.add(1);
+      sleep(1);
+      continue;
+    }
 
     if (statusRes.json('result.isActive') === true) {
       break;
@@ -85,7 +100,12 @@ export default function () {
       `${BASE_URL}/api/v1/concert-schedules/${CONCERT_SCHEDULE_ID}/schedule-seats?userId=${userId}&token=${queueToken}`
     );
     seatsDuration.add(seatsRes.timings.duration);
-    check(seatsRes, { 'seats 200': (r) => r.status === 200 });
+    // 조회 실패 시 에러 집계 후 1초 뒤 재시도
+    if (!check(seatsRes, { 'seats 200': (r) => r.status === 200 })) {
+      errorCount.add(1);
+      sleep(1);
+      continue;
+    }
 
     // 3-2. 좌석 점유 시도
     seatIds = pickRandomSeatIds();
@@ -95,8 +115,12 @@ export default function () {
       JSON_HEADERS
     );
     occupyDuration.add(occupyRes.timings.duration);
+
+    // 점유 성공 시 break, 좌석 경합(409)은 errorCount 집계에서 제외
     if (check(occupyRes, { 'occupy 200': (r) => r.status === 200 })) {
       break;
+    } else if (occupyRes.status !== 409) {
+      errorCount.add(1);
     }
 
     sleep(1);
@@ -111,6 +135,11 @@ export default function () {
   orderDuration.add(orderRes.timings.duration);
   check(orderRes, { 'order 201': (r) => r.status === 201 });
 
+  if (orderRes.status !== 201) {
+    errorCount.add(1);
+    return;
+  }
+
   const orderId = orderRes.json('result.orderId');
   if (!orderId) {
     return;
@@ -124,6 +153,10 @@ export default function () {
   );
   confirmDuration.add(confirmRes.timings.duration);
   check(confirmRes, { 'confirm 200': (r) => r.status === 200 });
+
+  if (confirmRes.status !== 200) {
+    errorCount.add(1);
+  }
 
   sleep(1);
 }
