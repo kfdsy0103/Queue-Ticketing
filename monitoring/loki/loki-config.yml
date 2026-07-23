@@ -1,0 +1,55 @@
+# 인증 설정
+auth_enabled: false # 싱글 테넌트
+
+# 서버 설정
+server:
+  http_listen_port: 3100
+
+# 스토리지 설정
+common:
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks  # 압축된 로그 데이터가 저장되는 디렉토리
+      rules_directory: /loki/rules    # Grafana에서 설정한 알림 규칙을 저장
+  replication_factor: 1               # 복제본 개수. 단일 노드이므로 복제 없음
+  ring: # 샤딩 관련 설정 (단일 인스턴스에서 관리하기 때문에 로컬로 하고, 샤딩 관련 메타데이터 저장을 메모리로 설정)
+    instance_addr: 127.0.0.1
+    kvstore:
+      store: inmemory
+
+# 쿼리 캐시 설정 (Grafana -> Loki API 요청 시, Loki가 쿼리 결과를 100mb까지 캐싱하여 빠른 응답)
+query_range:
+  results_cache:
+    cache:
+      embedded_cache:
+        enabled: true
+        max_size_mb: 100
+
+# 스키마 설정 (인덱싱으로 청크 풀스캔 X)
+schema_config:
+  configs:
+    - from: 2026-01-01
+      store: tsdb       # 인덱스 저장 방식. 시계열 DB
+      object_store: filesystem  # 청크를 로컬 디스크에 둠. 규모가 커지면 S3?
+      schema: v13       # 스키마 버전
+      index:
+        prefix: index_  # 인덱스 파일 접두사
+        period: 24h     # 인덱스 롤오버 주기
+
+# 로그 보존 기간 (compactor가 초과분 삭제)
+limits_config:
+  retention_period: 720h            # 30일 간 보관. Logback 설정과 일치시킴
+  ingestion_rate_mb: 4              # 초당 4MB 수집 제한
+  ingestion_burst_size_mb: 6        # 버스트 시 6MB까지 허용
+  max_query_parallelism: 32         # 최대 32개 병렬 쿼리 (Default)
+  allow_structured_metadata: false  # 구조화된 메타데이터 비허용
+
+# 압축 설정
+compactor:
+  working_directory: /loki/compactor
+  compaction_interval: 10m            # 10분마다 압축 작업
+  retention_enabled: true             # 보관 기간 정책 활성화
+  retention_delete_delay: 2h          # 삭제 전 2시간 대기
+  retention_delete_worker_count: 150  # 삭제 작업 워커 150개
+  delete_request_store: filesystem    # 삭제 요청 정보 저장소
