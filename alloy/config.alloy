@@ -17,22 +17,33 @@ loki.source.file "spring_source" {
 
 // 3. 로그 가공 및 라벨링
 loki.process "spring_labels" {
-	forward_to = [loki.write.grafana_loki.receiver]
+    forward_to = [loki.write.grafana_loki.receiver]
 
-    // 라벨 설정
-	stage.static_labels {
-		values = {
-			service = "ticketing-api",
-			env     = sys.env("ALLOY_ENV"),
-		}
-	}
+    // 고정 라벨 설정 (서비스명, 운영 환경)
+    stage.static_labels {
+       values = {
+          service = "ticketing-api",
+          env     = sys.env("ALLOY_ENV"),
+       }
+    }
 
-	// Java 스택 트레이스 멀티 라인 병합
-	// "yyyy-MM-dd HH:mm:ss.SSS ..."를 시작으로 여러 줄에 걸친 로그를 하나로 합치는 멀티라인 병합
-	stage.multiline {
-		firstline     = "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}"
-		max_wait_time = "3s"    // 새 로그가 오지 않으면 3초 후 현재 로그 완성으로 처리
-	}
+    // Java 스택 트레이스 멀티 라인 병합
+    stage.multiline {
+       firstline     = "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}"
+       max_wait_time = "3s"
+    }
+
+    // 로그 라인에서 로그 레벨(level) 추출
+    stage.regex {
+       expression = "^\\S+ \\S+ \\[(?P<thread>[^\\]]+)\\] (?P<level>\\w+)\\s+"
+    }
+
+    // 위에서 추출한 level 라벨링 하여 검색/필터링에 사용
+    stage.labels {
+       values = {
+          level = "",
+       }
+    }
 }
 
 // 4. 모니터링 서버의 Loki로 전송
