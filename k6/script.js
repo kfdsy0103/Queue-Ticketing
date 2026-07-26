@@ -1,7 +1,6 @@
 // [.env]
 // K6_WEB_DASHBOARD=true                                                  # 실시간 웹 대시보드 노출
 // K6_PROMETHEUS_RW_SERVER_URL=http://<prometheus-host>:9090/api/v1/write # Prometheus 원격 Write
-// K6_PROMETHEUS_RW_TREND_STATS=p(90),p(95),p(99),min,max,avg             # Trend 전송
 // BASE_URL=https://...                                                   # API 서버 URL
 // CONCERT_SCHEDULE_ID=1                                                  # 콘서트 회차 ID
 // SEAT_COUNT=100                                                         # 전체 좌석 수
@@ -55,7 +54,7 @@ export default function () {
   const enterRes = http.post(
     `${BASE_URL}/api/v1/queue/enter?userId=${userId}`,
     JSON.stringify({ concertScheduleId: Number(CONCERT_SCHEDULE_ID), enterType: 'JOIN' }),
-    JSON_HEADERS
+    { ...JSON_HEADERS, tags: { name: 'POST /queue/enter' } }
   );
   enterDuration.add(enterRes.timings.duration);
   check(enterRes, { 'enter 201': (r) => r.status === 201 });
@@ -75,7 +74,8 @@ export default function () {
   // 2. 활성화(Active)될 때까지 상태 폴링
   while (true) {
     const statusRes = http.get(
-      `${BASE_URL}/api/v1/queue/status?userId=${userId}&token=${queueToken}`
+      `${BASE_URL}/api/v1/queue/status?userId=${userId}&token=${queueToken}`,
+      { tags: { name: 'GET /queue/status' } }
     );
     statusDuration.add(statusRes.timings.duration);
     check(statusRes, { 'status 200': (r) => r.status === 200 });
@@ -97,7 +97,8 @@ export default function () {
   while (true) {
     // 3-1. 전체 좌석 조회
     const seatsRes = http.get(
-      `${BASE_URL}/api/v1/concert-schedules/${CONCERT_SCHEDULE_ID}/schedule-seats?userId=${userId}&token=${queueToken}`
+      `${BASE_URL}/api/v1/concert-schedules/${CONCERT_SCHEDULE_ID}/schedule-seats?userId=${userId}&token=${queueToken}`,
+      { tags: { name: 'GET /concert-schedules/{id}/schedule-seats' } }
     );
     seatsDuration.add(seatsRes.timings.duration);
     // 조회 실패 시 에러 집계 후 1초 뒤 재시도
@@ -112,7 +113,7 @@ export default function () {
     const occupyRes = http.post(
       `${BASE_URL}/api/v1/concert-schedules/${CONCERT_SCHEDULE_ID}/schedule-seats/occupy?userId=${userId}`,
       JSON.stringify({ scheduleSeatIds: seatIds, token: queueToken }),
-      JSON_HEADERS
+      { ...JSON_HEADERS, tags: { name: 'POST /concert-schedules/{id}/schedule-seats/occupy' } }
     );
     occupyDuration.add(occupyRes.timings.duration);
 
@@ -130,7 +131,7 @@ export default function () {
   const orderRes = http.post(
     `${BASE_URL}/api/v1/orders/create?userId=${userId}`,
     JSON.stringify({ scheduleSeatIds: seatIds, paymentMethod: 'KAKAO_PAY' }),
-    JSON_HEADERS
+    { ...JSON_HEADERS, tags: { name: 'POST /orders/create' } }
   );
   orderDuration.add(orderRes.timings.duration);
   check(orderRes, { 'order 201': (r) => r.status === 201 });
@@ -149,7 +150,7 @@ export default function () {
   const confirmRes = http.post(
     `${BASE_URL}/api/v1/orders/${orderId}/confirm?userId=${userId}`,
     JSON.stringify({ pgToken: 'mock_pg_token' }),
-    JSON_HEADERS
+    { ...JSON_HEADERS, tags: { name: 'POST /orders/{id}/confirm' } }
   );
   confirmDuration.add(confirmRes.timings.duration);
   check(confirmRes, { 'confirm 200': (r) => r.status === 200 });
