@@ -32,6 +32,8 @@ export const options = {
   stages: [
     { target: Number(__ENV.TARGET || '100'), duration: __ENV.DURATION || '5m' },
   ],
+  // url 태그는 userId/token 등 매 요청 유니크 값이 섞여 카디널리티가 폭발하므로 제외 (name 태그로 라우트 패턴만 집계)
+  systemTags: ['proto', 'subproto', 'status', 'method', 'name', 'group', 'check', 'error', 'error_code', 'tls_version', 'scenario', 'service', 'expected_response'],
 };
 
 const JSON_HEADERS = { headers: { 'Content-Type': 'application/json' } };
@@ -50,46 +52,68 @@ function pickRandomSeatIds() {
 export default function () {
   const userId = __VU;
 
-  // 1. 대기열 진입
+  // 1. 대기열 진입 (이미 참여/Active 중이면 물려받기로 전환하여 기존 순번/Active를 이어받음)
+  let queueToken;
+  let alreadyActive = false;
+
   const enterRes = http.post(
     `${BASE_URL}/api/v1/queue/enter?userId=${userId}`,
     JSON.stringify({ concertScheduleId: Number(CONCERT_SCHEDULE_ID), enterType: 'JOIN' }),
     { ...JSON_HEADERS, tags: { name: 'POST /queue/enter' } }
   );
   enterDuration.add(enterRes.timings.duration);
-  check(enterRes, { 'enter 201': (r) => r.status === 201 });
 
-  if (enterRes.status !== 201) {
+  if (check(enterRes, { 'enter 201': (r) => r.status === 201 })) {
+    queueToken = enterRes.json('result.token');
+  }
+  else if (enterRes.status === 409) {
+    // 이미 참여/Active 중인 정상 시나리오 -> 물려받기로 전환 (errorCount 미집계)
+    const takeoverRes = http.post(
+      `${BASE_URL}/api/v1/queue/takeover?userId=${userId}`,
+      JSON.stringify({ concertScheduleId: Number(CONCERT_SCHEDULE_ID) }),
+      { ...JSON_HEADERS, tags: { name: 'POST /queue/takeover' } }
+    );
+    enterDuration.add(takeoverRes.timings.duration);
+
+    if (check(takeoverRes, { 'takeover 201': (r) => r.status === 201 })) {
+      queueToken = takeoverRes.json('result.token');
+      alreadyActive = takeoverRes.json('result.isActive') === true;
+    } else {
+      errorCount.add(1);
+      sleep(1);
+      return;
+    }
+  }
+  else {
     errorCount.add(1);
     sleep(1);
     return;
   }
 
-  const queueToken = enterRes.json('result.token');
   if (!queueToken) {
     sleep(1);
     return;
   }
 
-  // 2. 활성화(Active)될 때까지 상태 폴링
-  while (true) {
-    const statusRes = http.get(
-      `${BASE_URL}/api/v1/queue/status?userId=${userId}&token=${queueToken}`,
-      { tags: { name: 'GET /queue/status' } }
-    );
-    statusDuration.add(statusRes.timings.duration);
-    check(statusRes, { 'status 200': (r) => r.status === 200 });
+  // 2. 활성화(Active)될 때까지 상태 폴링 (물려받기로 이미 Active를 이어받았다면 건너뜀)
+  if (!alreadyActive) {
+    while (true) {
+      const statusRes = http.get(
+        `${BASE_URL}/api/v1/queue/status?userId=${userId}&token=${queueToken}`,
+        { tags: { name: 'GET /queue/status' } }
+      );
+      statusDuration.add(statusRes.timings.duration);
 
-    if (statusRes.status !== 200) {
-      errorCount.add(1);
-      sleep(1);
-      continue;
+      if (check(statusRes, { 'status 200': (r) => r.status === 200 })) {
+        if (statusRes.json('result.isActive') === true) {
+          break;
+        }
+        sleep((statusRes.json('result.retryAfterMs') || 1000) / 1000);   // 서버에서 내려주는 주기로 폴링
+      } else {
+        errorCount.add(1);
+        sleep(1);
+      }
     }
-
-    if (statusRes.json('result.isActive') === true) {
-      break;
-    }
-    sleep((statusRes.json('result.retryAfterMs') || 1000) / 1000);   // 서버에서 내려주는 주기로 폴링
   }
 
   // 3. 전체 좌석 조회 및 좌석 점유 시도 (점유에 실패하면 사용자는 좌석 조회를 새롭게 하게 될 것)
@@ -101,26 +125,23 @@ export default function () {
       { tags: { name: 'GET /concert-schedules/{id}/schedule-seats' } }
     );
     seatsDuration.add(seatsRes.timings.duration);
-    // 조회 실패 시 에러 집계 후 1초 뒤 재시도
-    if (!check(seatsRes, { 'seats 200': (r) => r.status === 200 })) {
-      errorCount.add(1);
-      sleep(1);
-      continue;
-    }
 
-    // 3-2. 좌석 점유 시도
-    seatIds = pickRandomSeatIds();
-    const occupyRes = http.post(
-      `${BASE_URL}/api/v1/concert-schedules/${CONCERT_SCHEDULE_ID}/schedule-seats/occupy?userId=${userId}`,
-      JSON.stringify({ scheduleSeatIds: seatIds, token: queueToken }),
-      { ...JSON_HEADERS, tags: { name: 'POST /concert-schedules/{id}/schedule-seats/occupy' } }
-    );
-    occupyDuration.add(occupyRes.timings.duration);
+    if (check(seatsRes, { 'seats 200': (r) => r.status === 200 })) {
+      // 3-2. 좌석 점유 시도
+      seatIds = pickRandomSeatIds();
+      const occupyRes = http.post(
+        `${BASE_URL}/api/v1/concert-schedules/${CONCERT_SCHEDULE_ID}/schedule-seats/occupy?userId=${userId}`,
+        JSON.stringify({ scheduleSeatIds: seatIds, token: queueToken }),
+        { ...JSON_HEADERS, tags: { name: 'POST /concert-schedules/{id}/schedule-seats/occupy' } }
+      );
+      occupyDuration.add(occupyRes.timings.duration);
 
-    // 점유 성공 시 break, 좌석 경합(409)은 errorCount 집계에서 제외
-    if (check(occupyRes, { 'occupy 200': (r) => r.status === 200 })) {
-      break;
-    } else if (occupyRes.status !== 409) {
+      if (check(occupyRes, { 'occupy 200': (r) => r.status === 200 })) {
+        break;
+      } else if (occupyRes.status !== 409) {  // 좌석 경합(409)은 errorCount 집계에서 제외
+        errorCount.add(1);
+      }
+    } else {
       errorCount.add(1);
     }
 
@@ -134,14 +155,15 @@ export default function () {
     { ...JSON_HEADERS, tags: { name: 'POST /orders/create' } }
   );
   orderDuration.add(orderRes.timings.duration);
-  check(orderRes, { 'order 201': (r) => r.status === 201 });
 
-  if (orderRes.status !== 201) {
+  let orderId;
+  if (check(orderRes, { 'order 201': (r) => r.status === 201 })) {
+    orderId = orderRes.json('result.orderId');
+  } else {
     errorCount.add(1);
     return;
   }
 
-  const orderId = orderRes.json('result.orderId');
   if (!orderId) {
     return;
   }
@@ -153,9 +175,8 @@ export default function () {
     { ...JSON_HEADERS, tags: { name: 'POST /orders/{id}/confirm' } }
   );
   confirmDuration.add(confirmRes.timings.duration);
-  check(confirmRes, { 'confirm 200': (r) => r.status === 200 });
 
-  if (confirmRes.status !== 200) {
+  if (!check(confirmRes, { 'confirm 200': (r) => r.status === 200 })) {
     errorCount.add(1);
   }
 
