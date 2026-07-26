@@ -1,5 +1,7 @@
 package ticketing.domain.queue.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import jakarta.validation.constraints.NotNull;
 import lombok.Builder;
 import lombok.Getter;
@@ -54,6 +56,7 @@ public class TakeoverDTO {
 		String token;
 		long rank;
 		long retryAfterMs;
+		@JsonProperty("isActive")
 		boolean isActive;
 		String redirectEndpoint;
 	}

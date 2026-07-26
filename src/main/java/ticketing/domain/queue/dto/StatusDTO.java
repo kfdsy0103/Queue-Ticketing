@@ -1,5 +1,7 @@
 package ticketing.domain.queue.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
+
 import lombok.Builder;
 import lombok.Getter;
 
@@ -42,6 +44,7 @@ public class StatusDTO {
 	public static class Response {
 		long rank;
 		long retryAfterMs;
+		@JsonProperty("isActive")
 		boolean isActive;
 		String redirectEndpoint;
 	}
