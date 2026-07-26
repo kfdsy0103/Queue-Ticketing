@@ -51,6 +51,13 @@ public class ScheduleSeatService {
 			throw new GeneralException(ScheduleSeatErrorCode.SCHEDULE_SEAT_NOT_FOUND);
 		}
 
+		// 이미 SOLD 처리된 좌석이 포함되어 있는지 확인
+		boolean hasSoldSeat = scheduleSeats.stream()
+			.anyMatch(scheduleSeat -> scheduleSeat.getSeatStatus() != ScheduleSeat.SeatStatus.AVAILABLE);
+		if (hasSoldSeat) {
+			throw new GeneralException(ScheduleSeatErrorCode.NOT_AVAILABLE_SEAT);
+		}
+
 		// 토큰에 기록된 userId와 요청자 userId 일치 검사
 		Long tokenUserId = jwtTokenUtil.getClaim(command.getToken(), "userId", Long.class);
 		if (!command.getUserId().equals(tokenUserId)) {

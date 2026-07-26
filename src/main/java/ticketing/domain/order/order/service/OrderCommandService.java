@@ -77,6 +77,13 @@ public class OrderCommandService {
 			throw new GeneralException(ScheduleSeatErrorCode.SCHEDULE_SEAT_NOT_FOUND);
 		}
 
+		// 이미 SOLD 처리된 좌석이 포함되어 있는지 확인
+		boolean hasSoldSeat = scheduleSeats.stream()
+			.anyMatch(scheduleSeat -> scheduleSeat.getSeatStatus() != ScheduleSeat.SeatStatus.AVAILABLE);
+		if (hasSoldSeat) {
+			throw new GeneralException(ScheduleSeatErrorCode.NOT_AVAILABLE_SEAT);
+		}
+
 		// 입력받은 모든 좌석이 본인에 의해 Redis에서 점유(선점) 중인지 확인
 		List<String> occupyKeys = command.getScheduleSeatIds().stream()
 			.map(ScheduleSeatRedisKeys::occupyKey)
