@@ -3,7 +3,7 @@ server:
     mbeanregistry:
       enabled: true  # Tomcat Threads metric 활성화
     threads:
-      max: 10
+      max: 20
 
 spring:
   datasource:
