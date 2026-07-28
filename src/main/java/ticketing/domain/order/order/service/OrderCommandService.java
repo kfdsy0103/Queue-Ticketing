@@ -29,10 +29,7 @@ import ticketing.domain.order.orderitem.entity.OrderItemHistory;
 import ticketing.domain.order.orderitem.repository.OrderItemHistoryRepository;
 import ticketing.domain.order.orderitem.repository.OrderItemRepository;
 import ticketing.domain.payment.client.KakaoPayApiClient;
-import ticketing.domain.payment.client.dto.KakaoPayApproveRequest;
 import ticketing.domain.payment.client.dto.KakaoPayApproveResponse;
-import ticketing.domain.payment.client.dto.KakaoPayReadyRequest;
-import ticketing.domain.payment.client.dto.KakaoPayReadyResponse;
 import ticketing.domain.payment.entity.Payment;
 import ticketing.domain.payment.exception.PaymentErrorCode;
 import ticketing.domain.payment.repository.PaymentRepository;
@@ -67,7 +64,11 @@ public class OrderCommandService {
 	private final KakaoPayApiClient kakaoPayApiClient;
 	private final RedisUtil redisUtil;
 
-	public CreateDTO.Result create(CreateDTO.Command command) {
+	/**
+	 * 주문 생성 1단계: 좌석/점유 검증 후 Order(PENDING)와 OrderItem을 저장합니다. (외부 PG 호출 없음)
+	 * PG ready() 호출은 이 트랜잭션 밖에서 수행되도록 OrderFacadeService가 오케스트레이션합니다.
+	 */
+	public Long createPendingOrder(CreateDTO.Command command) {
 		User user = userRepository.findById(command.getUserId())
 			.orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
 
@@ -131,34 +132,64 @@ public class OrderCommandService {
 		}
 		orderItemRepository.saveAll(orderItems);
 
-		// 카카오페이 결제 준비 (tid 발급 및 리다이렉트 경로 획득)
-		KakaoPayReadyRequest kakaoPayReadyRequest = KakaoPayReadyRequest.builder()
-			.orderId(order.getId())
-			.build();
-		KakaoPayReadyResponse kakaoPayReadyResponseResult = kakaoPayApiClient.ready(kakaoPayReadyRequest);
-
-		// 결제 관련 정보 엔티티 저장
-		Payment payment = Payment.builder()
-			.order(order)
-			.method(command.getPaymentMethod())
-			.status(Payment.PaymentStatus.READY)
-			.tid(kakaoPayReadyResponseResult.getTid())
-			.redirectUrl(kakaoPayReadyResponseResult.getRedirectUrl())
-			.totalPrice(totalPrice)
-			.build();
-		paymentRepository.save(payment);
-
 		// 주문 처리 중에 재점유되지 않도록 TTL을 연장
 		command.getScheduleSeatIds().forEach(scheduleSeatId ->
 			redisUtil.expire(ScheduleSeatRedisKeys.occupyKey(scheduleSeatId), PAYING_TTL));
 
-		return CreateDTO.Result.builder()
-			.orderId(order.getId())
-			.redirectUrl(kakaoPayReadyResponseResult.getRedirectUrl())
-			.build();
+		return order.getId();
 	}
 
-	public ConfirmDTO.Result confirm(ConfirmDTO.Command command) {
+	/**
+	 * 주문 생성 2단계: PG ready() 성공 이후 발급받은 tid/redirectUrl로 Payment(READY)를 저장합니다.
+	 */
+	public void attachPayment(Long orderId, Payment.PaymentMethod method, String tid, String redirectUrl) {
+		Order order = orderRepository.findById(orderId)
+			.orElseThrow(() -> new GeneralException(OrderErrorCode.ORDER_NOT_FOUND));
+
+		Payment payment = Payment.builder()
+			.order(order)
+			.method(method)
+			.status(Payment.PaymentStatus.READY)
+			.tid(tid)
+			.redirectUrl(redirectUrl)
+			.totalPrice(order.getTotalPrice())
+			.build();
+		paymentRepository.save(payment);
+	}
+
+	/**
+	 * 아직 결제가 붙지 않은 PENDING 주문을 취소합니다. 취소했으면 true를 반환합니다.
+	 * ready() 실패 보상 및 orphan 청소 스케줄러에서 재사용됩니다. (좌석은 SOLD가 아니므로 PG 환불/좌석 복구 불필요)
+	 */
+	public boolean cancelPendingOrder(Long orderId) {
+		Order order = orderRepository.findById(orderId)
+			.orElseThrow(() -> new GeneralException(OrderErrorCode.ORDER_NOT_FOUND));
+
+		// 이미 처리됨
+		if (order.getOrderStatus() != Order.OrderStatus.PENDING) {
+			return false;
+		}
+
+		List<OrderItem> orderItems = orderItemRepository.findAllByOrderIdWithScheduleSeat(orderId);
+
+		// 재점유를 막던 점유 Key 해제 (다른 사용자가 점유했다면 해제 X)
+		List<String> occupyKeys = orderItems.stream()
+			.map(orderItem -> ScheduleSeatRedisKeys.occupyKey(orderItem.getScheduleSeat().getId()))
+			.toList();
+		if (!occupyKeys.isEmpty()) {
+			redisUtil.execute(RELEASE_OCCUPY_SCRIPT, occupyKeys, order.getUser().getId().toString());
+		}
+
+		orderItemRepository.deleteAll(orderItems);
+		order.cancel();
+		return true;
+	}
+
+	/**
+	 * 소유자/상태/금액/점유를 검증하고 approve() 호출에 필요한 값을 반환합니다. (외부 PG 호출 없음)
+	 */
+	@Transactional(readOnly = true)
+	public ConfirmDTO.Validated validateConfirm(ConfirmDTO.Command command) {
 		Order order = orderRepository.findById(command.getOrderId())
 			.orElseThrow(() -> new GeneralException(OrderErrorCode.ORDER_NOT_FOUND));
 
@@ -181,10 +212,8 @@ public class OrderCommandService {
 			throw new GeneralException(PaymentErrorCode.AMOUNT_MISMATCH);
 		}
 
-		// 결제 완료 대상 주문 항목 조회
-		List<OrderItem> orderItems = orderItemRepository.findAllByOrderIdWithScheduleSeat(order.getId());
-
 		// 출금 전, 주문에 속한 좌석들을 지금도 본인이 Redis에서 점유 중인지 재확인 (TTL 만료 대비)
+		List<OrderItem> orderItems = orderItemRepository.findAllByOrderIdWithScheduleSeat(order.getId());
 		List<String> occupyKeys = orderItems.stream()
 			.map(orderItem -> ScheduleSeatRedisKeys.occupyKey(orderItem.getScheduleSeat().getId()))
 			.toList();
@@ -199,42 +228,47 @@ public class OrderCommandService {
 			throw new GeneralException(ScheduleSeatErrorCode.NOT_OCCUPIED_BY_USER);
 		}
 
-		// 카카오페이 결제 승인 (이 단계에서 실제 출금) - 외부 API 호출
-		KakaoPayApproveRequest kakaoPayApproveRequest = KakaoPayApproveRequest.builder()
-			.tid(payment.getTid())
-			.pgToken(command.getPgToken())
-			.amount(payment.getTotalPrice())
-			.build();
-		KakaoPayApproveResponse kakaoPayApproveResponseResult = kakaoPayApiClient.approve(kakaoPayApproveRequest);
+		return new ConfirmDTO.Validated(payment.getTid(), payment.getTotalPrice());
+	}
 
-		// 출금 이후의 내부 처리는 실패 시 보상 트랜잭션(결제 취소)이 필요하므로 별도로 묶어 처리
-		try {
-			// PG가 실제로 승인한 금액이 우리가 요청한 결제 금액과 일치하는지 검증 (위변조 방지)
-			if (kakaoPayApproveResponseResult.getAmount() != payment.getTotalPrice()) {
-				throw new GeneralException(PaymentErrorCode.AMOUNT_MISMATCH);
-			}
+	/**
+	 * 이미 승인(출금)된 결과를 받아 Payment/ScheduleSeat/Order 상태를 확정합니다.
+	 */
+	public ConfirmDTO.Result completeConfirm(ConfirmDTO.Command command, KakaoPayApproveResponse approveResponse) {
+		Order order = orderRepository.findById(command.getOrderId())
+			.orElseThrow(() -> new GeneralException(OrderErrorCode.ORDER_NOT_FOUND));
 
-			// Payment 건 APPROVED 처리 (변경 감지)
-			payment.approve(kakaoPayApproveResponseResult.getAid());
-
-			// 결제 완료된 주문에 속한 좌석들을 SOLD 처리 (변경 감지)
-			orderItems.forEach(orderItem -> orderItem.getScheduleSeat().sell());
-
-			// Order 건 최종 COMPLETED 처리 (변경 감지)
-			order.complete();
-		} catch (GeneralException e) {
-			// 이미 나간 결제를 취소(보상)하고 원래 예외를 그대로 전파
-			kakaoPayApiClient.cancel(kakaoPayApproveResponseResult.getTid(), kakaoPayApproveResponseResult.getAmount());
-			throw e;
+		// 멱등 (이미 처리됨)
+		if (order.getOrderStatus() == Order.OrderStatus.COMPLETED) {
+			throw new GeneralException(PaymentErrorCode.ALREADY_PAID);
 		}
+
+		Payment payment = paymentRepository.findByOrderId(order.getId())
+			.orElseThrow(() -> new GeneralException(PaymentErrorCode.PAYMENT_NOT_FOUND));
+
+		// PG가 실제로 승인한 금액이 우리가 요청한 결제 금액과 일치하는지 위변조 검증
+		if (approveResponse.getAmount() != payment.getTotalPrice()) {
+			throw new GeneralException(PaymentErrorCode.AMOUNT_MISMATCH);
+		}
+
+		List<OrderItem> orderItems = orderItemRepository.findAllByOrderIdWithScheduleSeat(order.getId());
+
+		// Payment 건 APPROVED 처리 (변경 감지)
+		payment.approve(approveResponse.getAid());
+
+		// 결제 완료된 주문에 속한 좌석들을 SOLD 처리 (변경 감지)
+		orderItems.forEach(orderItem -> orderItem.getScheduleSeat().sell());
+
+		// Order 건 최종 COMPLETED 처리 (변경 감지)
+		order.complete();
 
 		return ConfirmDTO.Result.builder()
 			.orderId(order.getId())
-			.tid(kakaoPayApproveResponseResult.getTid())
-			.aid(kakaoPayApproveResponseResult.getAid())
-			.paymentMethodType(kakaoPayApproveResponseResult.getPaymentMethodType())
-			.amount(kakaoPayApproveResponseResult.getAmount())
-			.approvedAt(kakaoPayApproveResponseResult.getApprovedAt())
+			.tid(approveResponse.getTid())
+			.aid(approveResponse.getAid())
+			.paymentMethodType(approveResponse.getPaymentMethodType())
+			.amount(approveResponse.getAmount())
+			.approvedAt(approveResponse.getApprovedAt())
 			.build();
 	}
 

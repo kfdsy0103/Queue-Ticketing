@@ -41,7 +41,7 @@ public class OrderController {
 	@PostMapping("/create")
 	public CommonResponse<CreateDTO.Response> create(@Valid @RequestBody CreateDTO.Request request, @RequestParam Long userId) {
 		log.info("[OrderController] create() 호출 - userId: {}, scheduleSeatIds: {}", userId, request.getScheduleSeatIds());
-		CreateDTO.Result result = orderCommandService.create(request.toCommand(userId));
+		CreateDTO.Result result = orderFacadeService.create(request.toCommand(userId));
 		return CommonResponse.onSuccess(GeneralSuccessCode.CREATED, result.toResponse());
 	}
 

@@ -9,6 +9,9 @@ import lombok.NoArgsConstructor;
 
 public class ConfirmDTO {
 
+	// validateConfirm(트랜잭션 내 검증)이 approve() 호출에 필요한 값만 담아 반환하는 컨텍스트
+	public record Validated(String tid, int amount) {}
+
 	@Getter
 	@NoArgsConstructor
 	public static class Request {
