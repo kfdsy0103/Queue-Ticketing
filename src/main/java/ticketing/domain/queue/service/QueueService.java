@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -22,7 +23,6 @@ import ticketing.domain.user.exception.UserErrorCode;
 import ticketing.domain.user.repository.UserRepository;
 import ticketing.global.apiPayload.code.GeneralErrorCode;
 import ticketing.global.apiPayload.exception.GeneralException;
-import ticketing.global.util.JitterUtil;
 import ticketing.global.util.JwtTokenUtil;
 import ticketing.global.util.RedisUtil;
 
@@ -87,7 +87,7 @@ public class QueueService {
 		));
 
 		long rank = safeRank(redisUtil.zRank(waitingKey, user.getId()));
-		long retryAfterMs = JitterUtil.nextPollIntervalMillis(rank);
+		long retryAfterMs = nextPollIntervalMillis(rank);
 
 		return EnterDTO.Result.builder()
 			.token(token)
@@ -130,7 +130,7 @@ public class QueueService {
 		// Active 상태인지 확인 후에 return;
 		boolean isActive = redisUtil.hasKey(activeKey);
 		long rank = safeRank(redisUtil.zRank(waitingKey, userId));
-		long retryAfterMs = JitterUtil.nextPollIntervalMillis(rank);
+		long retryAfterMs = nextPollIntervalMillis(rank);
 
 		return StatusDTO.Result.builder()
 			.rank(rank)
@@ -184,7 +184,7 @@ public class QueueService {
 		}
 
 		long rank = safeRank(redisUtil.zRank(waitingKey, user.getId()));
-		long retryAfterMs = JitterUtil.nextPollIntervalMillis(rank);
+		long retryAfterMs = nextPollIntervalMillis(rank);
 
 		return TakeoverDTO.Result.builder()
 			.token(token)
@@ -221,5 +221,33 @@ public class QueueService {
 	 */
 	private long safeRank(Long rank) {
 		return rank != null ? rank + 1 : 0L;
+	}
+
+	/**
+	 * 대기 순번(position)에 따라 Polling 주기를 차등 적용하고, Jitter를 더해 동시 Polling을 분산한 최종 주기를 반환합니다. (ms)
+	 * 곧 입장할 유저는 짧은 주기로 체감을 개선하고, 뒤쪽 유저는 긴 주기로 서버 부하를 억제합니다.
+	 */
+	private long nextPollIntervalMillis(long position) {
+		int interval = getInterval(position);
+		int jitter = getJitter(position);
+		return interval + ThreadLocalRandom.current().nextInt(-jitter, jitter + 1);
+	}
+
+	// position 기준 Polling 주기 (ms)
+	private int getInterval(long position) {
+		if (position <= 100) return 1000;      // 곧 입장 — 1초
+		if (position <= 1000) return 2000;     // 2초
+		if (position <= 10000) return 5000;    // 5초
+		if (position <= 100000) return 10000;  // 10초
+		return 30000;                          // 9.5분+ 대기 — 30초
+	}
+
+	// Jitter 범위 (ms) — 동시 Polling 분산
+	private int getJitter(long position) {
+		if (position <= 100) return 0;         // 곧 입장은 Jitter 없음
+		if (position <= 1000) return 300;
+		if (position <= 10000) return 500;
+		if (position <= 100000) return 1000;
+		return 4000;
 	}
 }
