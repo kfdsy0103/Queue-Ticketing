@@ -7,11 +7,21 @@ server:
 
 spring:
   datasource:
-    url: jdbc:mysql://${DB_URL}?rewriteBatchedStatements=true&useServerPrepStmts=false
-    username: ${DB_USERNAME}
-    password: ${DB_PASSWORD}
-    driver-class-name: com.mysql.cj.jdbc.Driver
-    hikari:
+    # DataSourceBuilder가 HikariDataSource에 직접 바인딩하므로 url이 아니라 jdbc-url이어야 하고,
+    # 풀 설정도 hikari 하위가 아니라 같은 레벨에 적어야 한다
+    master:
+      jdbc-url: jdbc:mysql://${DB_MASTER_URL}?rewriteBatchedStatements=true&useServerPrepStmts=false
+      username: ${DB_USERNAME}
+      password: ${DB_PASSWORD}
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      pool-name: master-pool
+      maximum-pool-size: 10
+    slave:
+      jdbc-url: jdbc:mysql://${DB_SLAVE_URL}?rewriteBatchedStatements=true&useServerPrepStmts=false
+      username: ${DB_USERNAME}
+      password: ${DB_PASSWORD}
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      pool-name: slave-pool
       maximum-pool-size: 10
   jpa:
     hibernate:

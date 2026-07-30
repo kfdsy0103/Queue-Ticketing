@@ -1,9 +1,17 @@
 spring:
   datasource:
-    url: jdbc:mysql://localhost:3306/ticketing
-    username: root
-    password: 1234
-    driver-class-name: com.mysql.cj.jdbc.Driver
+    master:
+      jdbc-url: jdbc:mysql://localhost:3306/ticketing
+      username: root
+      password: 1234
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      pool-name: master-pool
+    slave:
+      jdbc-url: jdbc:mysql://localhost:3306/ticketing
+      username: root
+      password: 1234
+      driver-class-name: com.mysql.cj.jdbc.Driver
+      pool-name: slave-pool
   jpa:
     hibernate:
       ddl-auto: create
