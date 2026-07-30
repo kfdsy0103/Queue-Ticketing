@@ -1,5 +1,7 @@
 package ticketing.global.loadTestSeed;
 
+import java.sql.ResultSet;
+import java.sql.Statement;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
@@ -7,9 +9,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.springframework.boot.ApplicationArguments;
-import org.springframework.boot.ApplicationRunner;
 import org.springframework.context.annotation.Profile;
+import org.springframework.jdbc.core.ConnectionCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
@@ -20,7 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 @Profile("prod")
 @RequiredArgsConstructor
-public class LoadTestDataSeeder implements ApplicationRunner {
+public class LoadTestDataSeeder {
 
 	private static final int USER_COUNT = 100_000;
 	private static final int BATCH_SIZE = 1_000;
@@ -41,12 +42,12 @@ public class LoadTestDataSeeder implements ApplicationRunner {
 	/**
 	 * 유저 10만 + 공연장 1개(3천석, 등급 3개) + 콘서트 1개(1회차)를 주입합니다.
 	 */
-	@Override
-	public void run(ApplicationArguments args) {
+	public void seed() {
 
 		long startMillis = System.currentTimeMillis();
 		LocalDateTime now = LocalDateTime.now();
 
+		truncateAllTables();	// PK가 1부터 시작하도록 기존 데이터 제거
 		seedUsers(now);	// 유저 주입
 		long venueId = seedVenue(now);	// 콘서트장 주입
 		Map<String, Long> gradeIdsByName = seedSeatGrades(now);
@@ -58,6 +59,40 @@ public class LoadTestDataSeeder implements ApplicationRunner {
 			GRADE_SPECS.stream().mapToInt(GradeSpec::seatCount).sum(),
 			concertScheduleId,
 			System.currentTimeMillis() - startMillis);
+	}
+
+	/**
+	 * 현재 스키마의 모든 테이블을 비웁니다.
+	 *
+	 * DELETE는 AUTO_INCREMENT를 되돌리지 않으므로 TRUNCATE를 씁니다.
+	 * FK 제약 때문에 삭제 순서를 따지는 대신 세션 단위로 체크를 끄는데,
+	 * 이 설정은 커넥션에 종속되므로 ConnectionCallback으로 하나의 커넥션에서 처리합니다.
+	 */
+	private void truncateAllTables() {
+		jdbcTemplate.execute((ConnectionCallback<Void>)connection -> {
+			try (Statement statement = connection.createStatement()) {
+				statement.execute("SET FOREIGN_KEY_CHECKS = 0");
+				try {
+					List<String> tableNames = new ArrayList<>();
+					try (ResultSet resultSet = statement.executeQuery(
+						"SELECT table_name FROM information_schema.tables "
+							+ "WHERE table_schema = DATABASE() AND table_type = 'BASE TABLE'")) {
+						while (resultSet.next()) {
+							tableNames.add(resultSet.getString(1));
+						}
+					}
+
+					for (String tableName : tableNames) {
+						statement.execute("TRUNCATE TABLE `" + tableName + "`");
+					}
+					log.info("[LoadTestDataSeeder] 테이블 {}개 초기화 완료", tableNames.size());
+				} finally {
+					// 체크를 끈 채로 커넥션이 풀에 반납되면 이후 쓰기가 FK 검증을 건너뛴다
+					statement.execute("SET FOREIGN_KEY_CHECKS = 1");
+				}
+			}
+			return null;
+		});
 	}
 
 	/**
