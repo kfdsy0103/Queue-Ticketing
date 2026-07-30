@@ -1,6 +1,6 @@
 services:
   jenkins:
-    image: jenkins/jenkins:lts-jdk21
+    build: .   # aws CLI를 포함한 커스텀 이미지 (Dockerfile 참고)
     container_name: jenkins
     environment:
       - TZ=Asia/Seoul
