@@ -38,11 +38,6 @@ spring:
     secret: ${JWT_SECRET}
     expiration: 1800000
 
-# 시드 데이터 재주입 API 인증 토큰 (미설정 시 API가 잠긴다)
-app:
-  seed:
-    token: ${SEED_TOKEN:}
-
 # Prometheus
 management:
   endpoints:
@@ -61,5 +56,4 @@ management:
   metrics:
     tags:
       application: ticketing  # Grafana에서 앱 식별용
-      instance: ${INSTANCE_ID:unknown}  # EC2 인스턴스 구분용
       namespace: ticketing    # namespace

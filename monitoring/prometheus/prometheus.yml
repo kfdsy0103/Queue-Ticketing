@@ -5,12 +5,40 @@ scrape_configs:
   - job_name: "spring"
     scrape_native_histograms: true
     metrics_path: '/actuator/prometheus'
-    static_configs:
-      - targets: ["<EC2-PRIVATE-IP>:8080"]
+    ec2_sd_configs:
+      - region: ap-northeast-2
+        port: 8080
+        refresh_interval: 30s
+        filters:
+          - name: "tag:aws:autoscaling:groupName"
+            values: ["<ASG-NAME>"]  # ASG 이름
+          - name: "instance-state-name"
+            values: ["running"]
+    relabel_configs:
+      - source_labels: [__meta_ec2_instance_id]
+        target_label: instance
+      - source_labels: [__meta_ec2_private_ip]
+        target_label: private_ip
+      - source_labels: [__meta_ec2_availability_zone]
+        target_label: az
 
   - job_name: "node_exporter"
-    static_configs:
-      - targets: ["<EC2-PRIVATE-IP>:9100"]
+    ec2_sd_configs:
+      - region: ap-northeast-2
+        port: 9100
+        refresh_interval: 30s
+        filters:
+          - name: "tag:aws:autoscaling:groupName"
+            values: ["<ASG-NAME>"]  # ASG 이름
+          - name: "instance-state-name"
+            values: ["running"]
+    relabel_configs:
+      - source_labels: [__meta_ec2_instance_id]
+        target_label: instance
+      - source_labels: [__meta_ec2_private_ip]
+        target_label: private_ip
+      - source_labels: [__meta_ec2_availability_zone]
+        target_label: az
 
   - job_name: "mysqld_exporter"
     static_configs:
