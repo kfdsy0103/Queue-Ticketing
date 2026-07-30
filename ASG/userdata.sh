@@ -6,6 +6,7 @@
 # 원본을 수정하면 이 스크립트도 함께 고쳐야 한다.
 set -euo pipefail
 
+REGION="ap-northeast-2"
 SSM_PATH="/ticketing/prod"
 DOCKER_SSM_PATH="/ticketing/docker"   # 레지스트리 인증 정보 (.env에 섞이지 않도록 경로를 분리)
 DEPLOY_DIR="/app"
@@ -36,15 +37,7 @@ if ! command -v aws > /dev/null; then
     rm -rf /tmp/aws /tmp/awscliv2.zip
 fi
 
-# ── 2. IMDSv2로 리전과 인스턴스 ID 조회
-TOKEN=$(curl -fsS -X PUT "http://169.254.169.254/latest/api/token" \
-    -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
-REGION=$(curl -fsS -H "X-aws-ec2-metadata-token: $TOKEN" \
-    "http://169.254.169.254/latest/meta-data/placement/region")
-INSTANCE_ID=$(curl -fsS -H "X-aws-ec2-metadata-token: $TOKEN" \
-    "http://169.254.169.254/latest/meta-data/instance-id")
-
-# ── 3. 배포 디렉토리와 설정 파일 생성
+# ── 2. 배포 디렉토리와 설정 파일 생성
 mkdir -p "$DEPLOY_DIR/alloy" "$DEPLOY_DIR/logs"
 cd "$DEPLOY_DIR"
 
@@ -158,7 +151,7 @@ ALLOY_EOF
 # 정규식의 백슬래시가 깨지지 않도록 따옴표 heredoc으로 쓴 뒤, 모니터링 주소만 치환한다
 sed -i "s|__MONITORING_HOST__|${MONITORING_HOST}|" alloy/config.alloy
 
-# ── 4. SSM에서 설정을 받아 .env 생성
+# ── 3. SSM에서 설정을 받아 .env 생성
 # 파라미터 이름을 환경변수명 그대로 두었으므로, 경로의 마지막 조각만 잘라내면 된다
 aws ssm get-parameters-by-path \
     --path "$SSM_PATH" \
@@ -168,10 +161,9 @@ aws ssm get-parameters-by-path \
     --output text \
     | awk -F'\t' '{ n = split($1, path, "/"); print path[n] "=" $2 }' > .env
 
-echo "INSTANCE_ID=${INSTANCE_ID}" >> .env
 chmod 600 .env
 
-# ── 5. 애플리케이션 기동
+# ── 4. 애플리케이션 기동
 # private 저장소이므로 pull 전에 로그인하고, 끝나면 자격 증명을 지운다
 DOCKER_USERNAME=$(aws ssm get-parameter --region "$REGION" \
     --name "$DOCKER_SSM_PATH/DOCKER_USERNAME" \
