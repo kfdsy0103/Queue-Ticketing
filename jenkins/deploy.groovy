@@ -6,10 +6,11 @@ pipeline {
     }
 
     environment {
-        AWS_REGION =  'ap-northeast-2'  // ASG가 있는 리전
-        ASG_NAME   =  ""  // Application Auto Scaling Group 이름
-        SSM_PATH   = ""     // SSM Parameter 경로
-        HEALTH_URL = ""   // ALB의 헬스체크 엔드포인트
+        AWS_REGION         = 'ap-northeast-2'  // ASG가 있는 리전
+        ASG_NAME           = ""  // Application Auto Scaling Group 이름
+        LAUNCH_TEMPLATE_ID = ""  // Launch Template ID (lt-xxxxxxxx)
+        SSM_PATH           = ""     // SSM Parameter 경로
+        HEALTH_URL         = ""   // ALB의 헬스체크 엔드포인트
     }
 
     options {
@@ -57,6 +58,7 @@ pipeline {
                                 aws autoscaling start-instance-refresh \
                                     --region "$AWS_REGION" \
                                     --auto-scaling-group-name "$ASG_NAME" \
+                                    --desired-configuration '{"LaunchTemplate":{"LaunchTemplateId":"'"$LAUNCH_TEMPLATE_ID"'","Version":"$Latest"}}' \
                                     --preferences '{"MinHealthyPercentage":100,"MaxHealthyPercentage":200}' \
                                     --query 'InstanceRefreshId' \
                                     --output text

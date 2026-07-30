@@ -4,13 +4,15 @@
 #
 # 아래 docker-compose.yml과 config.alloy는 저장소 루트의 동명 파일을 복사한 것이므로,
 # 원본을 수정하면 이 스크립트도 함께 고쳐야 한다.
+#
+# userdata.sh 바뀌면 Launch Template new version 만들고 젠킨스로 재배포하면 됨
 set -euo pipefail
 
 REGION="ap-northeast-2"
 SSM_PATH="/ticketing/prod"
 DOCKER_SSM_PATH="/ticketing/docker"   # 레지스트리 인증 정보 (.env에 섞이지 않도록 경로를 분리)
 DEPLOY_DIR="/app"
-MONITORING_HOST=""   # 모니터링 서버 주소
+MONITORING_HOST=""   # 모니터링 서버 주소 (private)
 COMPOSE_VERSION="v2.39.1"
 
 # ── 1. Docker, Compose 플러그인, aws CLI 설치 (AMI에 이미 있으면 건너뜀)
