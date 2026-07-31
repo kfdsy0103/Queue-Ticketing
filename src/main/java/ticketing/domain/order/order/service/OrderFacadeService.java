@@ -22,19 +22,35 @@ import ticketing.global.util.RedisLockService;
 @RequiredArgsConstructor
 public class OrderFacadeService {
 
-	private static final String LOCK_KEY_PREFIX = "order:lock:confirm:";
+	private static final String CREATE_LOCK_KEY_PREFIX = "order:lock:create:";
+	private static final String CONFIRM_LOCK_KEY_PREFIX = "order:lock:confirm:";
 	private static final Duration LOCK_TTL = Duration.ofSeconds(5);
+
+	private static final Duration CREATE_LOCK_TTL = Duration.ofSeconds(5);
 
 	private final OrderCommandService orderCommandService;
 	private final KakaoPayApiClient kakaoPayApiClient;
 	private final RedisLockService redisLockService;
 
 	/**
+	 * userId 기반 멱등처리
 	 * 주문 생성: PENDING 주문 생성(tx) -> PG ready → Payment 저장(tx)
 	 */
 	public CreateDTO.Result create(CreateDTO.Command command) {
 
-		Long orderId = orderCommandService.createPendingOrder(command);
+		String lockKey = CREATE_LOCK_KEY_PREFIX + command.getUserId();
+		boolean acquired = redisLockService.tryLock(lockKey, command.getUserId().toString(), CREATE_LOCK_TTL);
+
+		if (!acquired) {
+			throw new GeneralException(OrderErrorCode.ORDER_IN_PROGRESS);
+		}
+
+		Long orderId;
+		try {
+			orderId = orderCommandService.createPendingOrder(command);
+		} finally {
+			redisLockService.releaseLock(lockKey);
+		}
 
 		try {
 			KakaoPayReadyResponse readyResponse = kakaoPayApiClient.ready(
@@ -61,11 +77,12 @@ public class OrderFacadeService {
 	}
 
 	/**
+	 * orderId 기반 멱등 처리
 	 * 주문 확정: 검증(tx) -> PG approve 출금 -> 로컬 확정(tx).
 	 */
 	public ConfirmDTO.Result confirm(ConfirmDTO.Command command) {
 
-		String lockKey = LOCK_KEY_PREFIX + command.getOrderId();
+		String lockKey = CONFIRM_LOCK_KEY_PREFIX + command.getOrderId();
 		boolean acquired = redisLockService.tryLock(lockKey, command.getUserId().toString(), LOCK_TTL);
 
 		if (!acquired) {
