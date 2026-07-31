@@ -27,9 +27,7 @@ spring:
     hibernate:
       ddl-auto: update
     show-sql: false
-    properties:
-      hibernate:
-        dialect: org.hibernate.dialect.MySQL8Dialect
+    open-in-view: false   # @Transactional 안에서 연관관계 로딩 및 DTO를 반환하므로, 컨트롤러 레이어까지 가지 않음
   data:
     redis:
       host: ${REDIS_HOST}
