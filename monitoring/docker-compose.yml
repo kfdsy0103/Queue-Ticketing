@@ -3,6 +3,8 @@ services:
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus
+    environment:
+      - TZ=Asia/Seoul
     ports:
       - "9090:9090"
     volumes:
@@ -24,6 +26,8 @@ services:
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
+    environment:
+      - TZ=Asia/Seoul
     ports:
       - "3000:3000"
     volumes:
@@ -35,15 +39,30 @@ services:
       - monitoring
     restart: unless-stopped
 
-  # RDS(MySQL) Exporter
-  mysqld-exporter:
+  # RDS(MySQL) Exporter - Master
+  mysqld-exporter-master:
     image: prom/mysqld-exporter:latest
-    container_name: mysqld-exporter
+    container_name: mysqld-exporter-master
     environment:
+      TZ: "Asia/Seoul"
       MYSQLD_EXPORTER_PASSWORD: "${RDS_EXPORTER_PASSWORD}"
     command:
       - "--mysqld.username=${RDS_EXPORTER_USERNAME}"
-      - "--mysqld.address=${RDS_EXPORTER_ADDRESS}"
+      - "--mysqld.address=${RDS_MASTER_EXPORTER_ADDRESS}"
+    networks:
+      - monitoring
+    restart: unless-stopped
+
+  # RDS(MySQL) Exporter - Slave
+  mysqld-exporter-slave:
+    image: prom/mysqld-exporter:latest
+    container_name: mysqld-exporter-slave
+    environment:
+      TZ: "Asia/Seoul"
+      MYSQLD_EXPORTER_PASSWORD: "${RDS_EXPORTER_PASSWORD}"
+    command:
+      - "--mysqld.username=${RDS_EXPORTER_USERNAME}"
+      - "--mysqld.address=${RDS_SLAVE_EXPORTER_ADDRESS}"
     networks:
       - monitoring
     restart: unless-stopped
@@ -53,17 +72,19 @@ services:
     image: oliver006/redis_exporter:latest
     container_name: redis-exporter
     environment:
+      TZ: "Asia/Seoul"
       REDIS_ADDR: "${REDIS_EXPORTER_ADDR}"
       REDIS_PASSWORD: "${REDIS_EXPORTER_PASSWORD:-}"
     networks:
       - monitoring
     restart: unless-stopped
 
-
   # Loki
   loki:
     image: grafana/loki:latest
     container_name: loki
+    environment:
+      - TZ=Asia/Seoul
     ports:
       - "3100:3100"
     volumes:
