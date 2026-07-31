@@ -11,9 +11,11 @@ import org.springframework.stereotype.Component;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+import ticketing.domain.order.order.constants.OrderRedisKeys;
 import ticketing.domain.payment.entity.Payment;
 import ticketing.domain.payment.repository.PaymentRepository;
 import ticketing.domain.payment.service.PaymentCommandService;
+import ticketing.global.util.RedisLockService;
 
 @Slf4j
 @Component
@@ -23,8 +25,11 @@ public class PaymentRefundScheduler {
 	// 5분이 지나도 처리되지 못하고 (서버 크래시, 네트워크 문제 등 ..) 잔존해있는 Payment 조회 시 기준이 되는 시간
 	private static final Duration STALE_READY_THRESHOLD = Duration.ofMinutes(5);
 
+	private static final Duration LOCK_TTL = Duration.ofSeconds(5);
+
 	private final PaymentRepository paymentRepository;
 	private final PaymentCommandService paymentCommandService;
+	private final RedisLockService redisLockService;
 
 	/**
 	 * PG 승인 이후 서버 크래시로 로컬에 반영되지 못한 결제 건을 PG 상태 재조회로 복구/환불하는 스케쥴러입니다.
@@ -46,10 +51,18 @@ public class PaymentRefundScheduler {
 		);
 
 		for (Payment payment : stalePayments) {
+
+			String lockKey = OrderRedisKeys.confirmLockKey(payment.getOrder().getId());
+			if (!redisLockService.tryLock(lockKey, "scheduler", LOCK_TTL)) {
+				continue;	// confirm()과 경합이 났음을 의미
+			}
+
 			try {
 				paymentCommandService.resolveStalePayment(payment.getId());
 			} catch (Exception e) {
 				log.error("[PaymentRefundScheduler] - refundOrphanedPayments() paymentId={} 처리 중 오류", payment.getId(), e);
+			} finally {
+				redisLockService.releaseLock(lockKey);
 			}
 		}
 	}

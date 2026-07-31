@@ -11,9 +11,11 @@ import org.springframework.stereotype.Component;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
+import ticketing.domain.order.order.constants.OrderRedisKeys;
 import ticketing.domain.order.order.entity.Order;
 import ticketing.domain.order.order.repository.OrderRepository;
 import ticketing.domain.order.order.service.OrderCommandService;
+import ticketing.global.util.RedisLockService;
 
 @Slf4j
 @Component
@@ -23,8 +25,12 @@ public class OrderCleanupScheduler {
 	// 10분 이상 결제 없이 PENDING으로 남아있는 Order 정리
 	private static final Duration STALE_PENDING_THRESHOLD = Duration.ofMinutes(10);
 
+	// confirm()과 동일한 Lock 키, confirm 처리 중인 주문에 경합되지 않도록
+	private static final Duration LOCK_TTL = Duration.ofSeconds(5);
+
 	private final OrderRepository orderRepository;
 	private final OrderCommandService orderCommandService;
+	private final RedisLockService redisLockService;
 
 	/**
 	 * create()에서 Order는 저장됐지만 PG ready()/Payment 저장 전에 실패(크래시 등)하여
@@ -44,12 +50,20 @@ public class OrderCleanupScheduler {
 
 		int cancelledCount = 0;
 		for (Order order : orphanedOrders) {
+
+			String lockKey = OrderRedisKeys.confirmLockKey(order.getId());
+			if (!redisLockService.tryLock(lockKey, "scheduler", LOCK_TTL)) {
+				continue;	// confirm()과 경합된 상황
+			}
+
 			try {
 				if (orderCommandService.cancelPendingOrder(order.getId())) {
 					cancelledCount++;
 				}
 			} catch (Exception e) {
 				log.error("[OrderCleanupScheduler] - cleanupOrphanedPendingOrders() orderId={} 처리 중 오류", order.getId(), e);
+			} finally {
+				redisLockService.releaseLock(lockKey);
 			}
 		}
 

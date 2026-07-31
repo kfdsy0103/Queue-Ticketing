@@ -6,6 +6,7 @@ import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import ticketing.domain.order.order.constants.OrderRedisKeys;
 import ticketing.domain.order.order.dto.ConfirmDTO;
 import ticketing.domain.order.order.dto.CreateDTO;
 import ticketing.domain.order.order.exception.OrderErrorCode;
@@ -22,10 +23,7 @@ import ticketing.global.util.RedisLockService;
 @RequiredArgsConstructor
 public class OrderFacadeService {
 
-	private static final String CREATE_LOCK_KEY_PREFIX = "order:lock:create:";
-	private static final String CONFIRM_LOCK_KEY_PREFIX = "order:lock:confirm:";
 	private static final Duration LOCK_TTL = Duration.ofSeconds(5);
-
 	private static final Duration CREATE_LOCK_TTL = Duration.ofSeconds(5);
 
 	private final OrderCommandService orderCommandService;
@@ -38,7 +36,7 @@ public class OrderFacadeService {
 	 */
 	public CreateDTO.Result create(CreateDTO.Command command) {
 
-		String lockKey = CREATE_LOCK_KEY_PREFIX + command.getUserId();
+		String lockKey = OrderRedisKeys.createLockKey(command.getUserId());
 		boolean acquired = redisLockService.tryLock(lockKey, command.getUserId().toString(), CREATE_LOCK_TTL);
 
 		if (!acquired) {
@@ -82,7 +80,7 @@ public class OrderFacadeService {
 	 */
 	public ConfirmDTO.Result confirm(ConfirmDTO.Command command) {
 
-		String lockKey = CONFIRM_LOCK_KEY_PREFIX + command.getOrderId();
+		String lockKey = OrderRedisKeys.confirmLockKey(command.getOrderId());
 		boolean acquired = redisLockService.tryLock(lockKey, command.getUserId().toString(), LOCK_TTL);
 
 		if (!acquired) {
