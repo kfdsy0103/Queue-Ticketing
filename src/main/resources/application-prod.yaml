@@ -22,7 +22,7 @@ spring:
       password: ${DB_PASSWORD}
       driver-class-name: com.mysql.cj.jdbc.Driver
       pool-name: slave-pool
-      maximum-pool-size: 20
+      maximum-pool-size: 10
   jpa:
     hibernate:
       ddl-auto: update
