@@ -11,9 +11,13 @@ import org.springframework.stereotype.Service;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import ticketing.domain.concert.scheduleprice.entity.SchedulePrice;
+import ticketing.domain.concert.scheduleprice.exception.SchedulePriceErrorCode;
+import ticketing.domain.concert.scheduleprice.repository.SchedulePriceRepository;
 import ticketing.domain.concert.scheduleseat.constants.ScheduleSeatRedisKeys;
 import ticketing.domain.concert.scheduleseat.dto.FindAllDTO;
 import ticketing.domain.concert.scheduleseat.dto.FindDTO;
+import ticketing.domain.concert.scheduleseat.dto.FindOccupyDTO;
 import ticketing.domain.concert.scheduleseat.dto.OccupyDTO;
 import ticketing.domain.concert.scheduleseat.entity.ScheduleSeat;
 import ticketing.domain.concert.scheduleseat.enums.SeatDisplayStatus;
@@ -36,6 +40,7 @@ public class ScheduleSeatService {
 		RedisScript.of(new ClassPathResource("luaScripts/occupy-seats.lua"), Long.class);
 
 	private final ScheduleSeatRepository scheduleSeatRepository;
+	private final SchedulePriceRepository schedulePriceRepository;
 	private final RedisUtil redisUtil;
 	private final JwtTokenUtil jwtTokenUtil;
 
@@ -192,6 +197,58 @@ public class ScheduleSeatService {
 
 		return FindAllDTO.Result.builder()
 			.scheduleSeats(scheduleSeats)
+			.build();
+	}
+
+	/**
+	 * 자신이 점유 중인 좌석을 검색합니다.
+	 */
+	public FindOccupyDTO.Result findMyOccupiedSeats(FindOccupyDTO.Command command) {
+
+		// 유저가 해당 회차의 대기열을 통과(Active) 했는지 확인
+		String storedSessionId = redisUtil.get(QueueRedisKeys.activeKey(command.getConcertScheduleId(), command.getUserId()));
+		if (storedSessionId == null) {
+			throw new GeneralException(QueueErrorCode.NOT_ACTIVE);
+		}
+
+		List<ScheduleSeat> scheduleSeatEntities = scheduleSeatRepository.findAllByConcertScheduleId(command.getConcertScheduleId());
+		if (scheduleSeatEntities.isEmpty()) {
+			return FindOccupyDTO.Result.builder().seats(List.of()).build();
+		}
+
+		// occupy Key 목록을 한 번의 MGET으로 일괄 조회하여, 본인이 점유 중인 좌석만 골라낸다
+		List<String> occupyKeys = scheduleSeatEntities.stream()
+			.map(scheduleSeat -> ScheduleSeatRedisKeys.occupyKey(scheduleSeat.getId()))
+			.toList();
+		List<Object> occupyValues = redisUtil.multiGet(occupyKeys);
+
+		String userIdString = command.getUserId().toString();
+
+		List<FindOccupyDTO.Item> items = IntStream.range(0, scheduleSeatEntities.size())
+			.filter(i -> occupyValues.get(i) != null && userIdString.equals(occupyValues.get(i).toString()))
+			.mapToObj(i -> {
+				ScheduleSeat scheduleSeat = scheduleSeatEntities.get(i);
+
+				SchedulePrice schedulePrice = schedulePriceRepository.findByConcertScheduleIdAndSeatGradeId(
+						command.getConcertScheduleId(),
+						scheduleSeat.getSeat().getSeatGrade().getId())
+					.orElseThrow(() -> new GeneralException(SchedulePriceErrorCode.SCHEDULE_PRICE_NOT_FOUND));
+
+				Long remainingSeconds = redisUtil.getExpire(occupyKeys.get(i));
+
+				return FindOccupyDTO.Item.builder()
+					.scheduleSeatId(scheduleSeat.getId())
+					.seatId(scheduleSeat.getSeat().getId())
+					.seatNumber(scheduleSeat.getSeat().getSeatNumber())
+					.seatGradeName(scheduleSeat.getSeat().getSeatGrade().getName())
+					.price(schedulePrice.getPrice())
+					.remainingSeconds(remainingSeconds)
+					.build();
+			})
+			.toList();
+
+		return FindOccupyDTO.Result.builder()
+			.seats(items)
 			.build();
 	}
 }

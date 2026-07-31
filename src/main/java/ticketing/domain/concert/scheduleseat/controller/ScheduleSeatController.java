@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ticketing.domain.concert.scheduleseat.dto.FindAllDTO;
 import ticketing.domain.concert.scheduleseat.dto.FindDTO;
+import ticketing.domain.concert.scheduleseat.dto.FindOccupyDTO;
 import ticketing.domain.concert.scheduleseat.dto.OccupyDTO;
 import ticketing.domain.concert.scheduleseat.service.ScheduleSeatService;
 import ticketing.global.apiPayload.CommonResponse;
@@ -36,6 +37,20 @@ public class ScheduleSeatController {
 		log.info("[ScheduleSeatController] occupy() 호출 - userId: {}, concertScheduleId: {}, scheduleSeatIds: {}",
 			userId, concertScheduleId, request.getScheduleSeatIds());
 		OccupyDTO.Result result = scheduleSeatService.occupy(request.toCommand(userId));
+		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
+	}
+
+	/**
+	 * 자신이 점유 중인 좌석 목록을 조회합니다.
+	 */
+	@GetMapping("/occupy")
+	public CommonResponse<FindOccupyDTO.Response> findOccupy(
+		@PathVariable Long concertScheduleId,
+		@RequestParam Long userId
+	) {
+		log.info("[ScheduleSeatController] findOccupy() 호출 - userId: {}, concertScheduleId: {}", userId, concertScheduleId);
+		FindOccupyDTO.Result result = scheduleSeatService.findMyOccupiedSeats(
+			FindOccupyDTO.Command.of(userId, concertScheduleId));
 		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
 	}
 
