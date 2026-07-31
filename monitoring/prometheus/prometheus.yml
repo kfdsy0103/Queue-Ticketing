@@ -45,9 +45,14 @@ scrape_configs:
       - targets: ["mysqld-exporter-master:9104"]
         labels:
           role: "master"
-      - targets: ["mysqld-exporter-slave:9104"]
+      - targets: ["mysqld-exporter-slave-1:9104"]
         labels:
           role: "slave"
+          replica: "slave-1"
+      - targets: ["mysqld-exporter-slave-2:9104"]
+        labels:
+          role: "slave"
+          replica: "slave-2"
 
   - job_name: "redis_exporter"
     static_configs:

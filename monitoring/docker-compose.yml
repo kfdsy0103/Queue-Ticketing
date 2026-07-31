@@ -53,16 +53,30 @@ services:
       - monitoring
     restart: unless-stopped
 
-  # RDS(MySQL) Exporter - Slave
-  mysqld-exporter-slave:
+  # RDS(MySQL) Exporter - Slave 1
+  mysqld-exporter-slave-1:
     image: prom/mysqld-exporter:latest
-    container_name: mysqld-exporter-slave
+    container_name: mysqld-exporter-slave-1
     environment:
       TZ: "Asia/Seoul"
       MYSQLD_EXPORTER_PASSWORD: "${RDS_EXPORTER_PASSWORD}"
     command:
       - "--mysqld.username=${RDS_EXPORTER_USERNAME}"
-      - "--mysqld.address=${RDS_SLAVE_EXPORTER_ADDRESS}"
+      - "--mysqld.address=${RDS_SLAVE1_EXPORTER_ADDRESS}"
+    networks:
+      - monitoring
+    restart: unless-stopped
+
+  # RDS(MySQL) Exporter - Slave 2
+  mysqld-exporter-slave-2:
+    image: prom/mysqld-exporter:latest
+    container_name: mysqld-exporter-slave-2
+    environment:
+      TZ: "Asia/Seoul"
+      MYSQLD_EXPORTER_PASSWORD: "${RDS_EXPORTER_PASSWORD}"
+    command:
+      - "--mysqld.username=${RDS_EXPORTER_USERNAME}"
+      - "--mysqld.address=${RDS_SLAVE2_EXPORTER_ADDRESS}"
     networks:
       - monitoring
     restart: unless-stopped
