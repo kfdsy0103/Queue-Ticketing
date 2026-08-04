@@ -55,13 +55,17 @@ public class Order extends BaseEntity {
         this.orderStatus = OrderStatus.CANCELLED;
     }
 
-    public void subtractPrice(int price) {
-        this.totalPrice -= price;
+    public void expire() {
+        if (this.orderStatus != OrderStatus.PENDING) {
+            throw new GeneralException(OrderErrorCode.NOT_PENDING_ORDER);
+        }
+        this.orderStatus = OrderStatus.EXPIRED;
     }
 
     public enum OrderStatus {
-        PENDING,
-        COMPLETED,
-        CANCELLED
+        PENDING,    // 주문 생성됨, 결제 대기 중
+        COMPLETED,  // 결제 승인 완료
+        EXPIRED,    // 결제되지 못한 채 종료됨
+        CANCELLED   // 결제 완료 후 취소
     }
 }

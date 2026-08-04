@@ -69,7 +69,7 @@ public class OrderFacadeService {
 				.redirectUrl(readyResponse.getRedirectUrl())
 				.build();
 		} catch (Exception e) {
-			orderCommandService.cancelPendingOrder(orderId);
+			orderCommandService.expirePendingOrder(orderId);
 			throw e;
 		}
 	}

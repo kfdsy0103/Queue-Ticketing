@@ -33,13 +33,12 @@ public class OrderCleanupScheduler {
 	private final RedisLockService redisLockService;
 
 	/**
-	 * create()에서 Order는 저장됐지만 PG ready()/Payment 저장 전에 실패(크래시 등)하여
-	 * 결제가 붙지 않은 채 남은 PENDING 주문을 1분마다 조회하여 취소 처리합니다.
+	 * create()에서 Order는 PG 호출에 실패하여 PENDING으로 잔존해있는 Order건을 주기적으로 처리합니다.
 	 */
 	@Async("schedulerTaskExecutor")
 	@Scheduled(fixedDelay = 60000)
-	@SchedulerLock(name = "orderCleanupScheduler", lockAtLeastFor = "PT10S", lockAtMostFor = "PT50S")
-	public void cleanupOrphanedPendingOrders() {
+	@SchedulerLock(name = "processPendingOrder", lockAtLeastFor = "PT10S", lockAtMostFor = "PT50S")
+	public void processPendingOrder() {
 
 		LocalDateTime threshold = LocalDateTime.now().minus(STALE_PENDING_THRESHOLD);
 
@@ -48,7 +47,7 @@ public class OrderCleanupScheduler {
 			threshold
 		);
 
-		int cancelledCount = 0;
+		int expiredCount = 0;
 		for (Order order : orphanedOrders) {
 
 			String lockKey = OrderRedisKeys.confirmLockKey(order.getId());
@@ -57,8 +56,8 @@ public class OrderCleanupScheduler {
 			}
 
 			try {
-				if (orderCommandService.cancelPendingOrder(order.getId())) {
-					cancelledCount++;
+				if (orderCommandService.expirePendingOrder(order.getId())) {
+					expiredCount++;
 				}
 			} catch (Exception e) {
 				log.error("[OrderCleanupScheduler] - cleanupOrphanedPendingOrders() orderId={} 처리 중 오류", order.getId(), e);
@@ -67,8 +66,8 @@ public class OrderCleanupScheduler {
 			}
 		}
 
-		if (cancelledCount > 0) {
-			log.info("[OrderCleanupScheduler] 결제 없는 PENDING 주문 {}건 취소 처리", cancelledCount);
+		if (expiredCount > 0) {
+			log.info("[OrderCleanupScheduler] 결제 없는 PENDING 주문 {}건 만료 처리", expiredCount);
 		}
 	}
 }
