@@ -20,7 +20,7 @@ import ticketing.global.util.RedisLockService;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class PaymentRefundScheduler {
+public class PaymentScheduler {
 
 	// 5분이 지나도 처리되지 못하고 (서버 크래시, 네트워크 문제 등 ..) 잔존해있는 Payment 조회 시 기준이 되는 시간
 	private static final Duration STALE_READY_THRESHOLD = Duration.ofMinutes(5);
@@ -38,8 +38,8 @@ public class PaymentRefundScheduler {
 	 */
 	@Async("schedulerTaskExecutor")
 	@Scheduled(fixedDelay = 60000)
-	@SchedulerLock(name = "paymentRefundScheduler", lockAtLeastFor = "PT10S", lockAtMostFor = "PT50S")
-	public void refundOrphanedPayments() {
+	@SchedulerLock(name = "processReadyPayments", lockAtLeastFor = "PT10S", lockAtMostFor = "PT50S")
+	public void processReadyPayments() {
 
 		// 조회 기준 시간
 		LocalDateTime threshold = LocalDateTime.now().minus(STALE_READY_THRESHOLD);
@@ -60,7 +60,7 @@ public class PaymentRefundScheduler {
 			try {
 				paymentCommandService.resolveStalePayment(payment.getId());
 			} catch (Exception e) {
-				log.error("[PaymentRefundScheduler] - refundOrphanedPayments() paymentId={} 처리 중 오류", payment.getId(), e);
+				log.error("[PaymentScheduler] - refundOrphanedPayments() paymentId={} 처리 중 오류", payment.getId(), e);
 			} finally {
 				redisLockService.releaseLock(lockKey);
 			}

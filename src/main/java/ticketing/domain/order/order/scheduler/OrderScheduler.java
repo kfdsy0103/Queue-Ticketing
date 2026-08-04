@@ -20,7 +20,7 @@ import ticketing.global.util.RedisLockService;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class OrderCleanupScheduler {
+public class OrderScheduler {
 
 	// 10분 이상 결제 없이 PENDING으로 남아있는 Order 정리
 	private static final Duration STALE_PENDING_THRESHOLD = Duration.ofMinutes(10);
@@ -38,7 +38,7 @@ public class OrderCleanupScheduler {
 	@Async("schedulerTaskExecutor")
 	@Scheduled(fixedDelay = 60000)
 	@SchedulerLock(name = "processPendingOrder", lockAtLeastFor = "PT10S", lockAtMostFor = "PT50S")
-	public void processPendingOrder() {
+	public void processPendingOrders() {
 
 		LocalDateTime threshold = LocalDateTime.now().minus(STALE_PENDING_THRESHOLD);
 
@@ -60,14 +60,14 @@ public class OrderCleanupScheduler {
 					expiredCount++;
 				}
 			} catch (Exception e) {
-				log.error("[OrderCleanupScheduler] - cleanupOrphanedPendingOrders() orderId={} 처리 중 오류", order.getId(), e);
+				log.error("[OrderScheduler] - cleanupOrphanedPendingOrders() orderId={} 처리 중 오류", order.getId(), e);
 			} finally {
 				redisLockService.releaseLock(lockKey);
 			}
 		}
 
 		if (expiredCount > 0) {
-			log.info("[OrderCleanupScheduler] 결제 없는 PENDING 주문 {}건 만료 처리", expiredCount);
+			log.info("[OrderScheduler] 결제 없는 PENDING 주문 {}건 만료 처리", expiredCount);
 		}
 	}
 }
