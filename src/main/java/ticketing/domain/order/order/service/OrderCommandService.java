@@ -304,9 +304,10 @@ public class OrderCommandService {
 	}
 
 	/**
-	 * 소유자/상태를 검증하고 PG 환불 호출에 필요한 값을 반환합니다. (외부 PG 호출 없음)
+	 * 소유자/상태를 검증하고, 환불 의도를 Payment에 먼저 기록한 뒤 PG 호출에 필요한 값을 반환합니다. (외부 PG 호출 없음)
+	 * 이 트랜잭션이 커밋되어야 CANCEL_REQUESTED 표식이 남고, 이후 크래시가 나도 스케쥴러가 복구할 수 있다.
 	 */
-	public CancelDTO.Validated validateCancel(CancelDTO.Command command) {
+	public CancelDTO.Prepared prepareCancel(CancelDTO.Command command) {
 		Order order = orderRepository.findById(command.getOrderId())
 			.orElseThrow(() -> new GeneralException(OrderErrorCode.ORDER_NOT_FOUND));
 
@@ -320,7 +321,7 @@ public class OrderCommandService {
 			throw new GeneralException(OrderErrorCode.ALREADY_CANCELLED_ORDER);
 		}
 
-		// 결제 완료된 주문만 취소 가능
+		// COMPLETED인 상태의 Order만 취소 가능
 		if (order.getOrderStatus() != Order.OrderStatus.COMPLETED) {
 			throw new GeneralException(OrderErrorCode.ORDER_NOT_COMPLETED);
 		}
@@ -328,7 +329,15 @@ public class OrderCommandService {
 		Payment payment = paymentRepository.findByOrderId(order.getId())
 			.orElseThrow(() -> new GeneralException(PaymentErrorCode.PAYMENT_NOT_FOUND));
 
-		return CancelDTO.Validated.builder()
+		// 앞선 취소 요청이 환불 결과를 반영하지 못한 채 남아있는 건. 스케쥴러가 정리할 때까지 재요청을 막는다
+		if (payment.getStatus() == Payment.PaymentStatus.CANCEL_REQUESTED) {
+			throw new GeneralException(OrderErrorCode.ORDER_IN_PROGRESS);
+		}
+
+		// 진짜 환불 API 호출 전에, '환불이 요청되었다'라고 상태 전이 (네트워크 오류나 서버 크래시로 로컬 반영에 실패한 경우, 스케쥴러가 감지할 수 있도록 하기 위함)
+		payment.requestCancel();
+
+		return CancelDTO.Prepared.builder()
 			.tid(payment.getTid())
 			.amount(order.getTotalPrice())
 			.build();
@@ -355,7 +364,7 @@ public class OrderCommandService {
 		// 환불이 끝난 결제 건도 CANCELLED로 확정
 		payment.cancel();
 
-		// order cancel (COMPLETED가 아니면 여기서 막힌다)
+		// order cancel
 		order.cancel();
 
 		return CancelDTO.Result.builder()

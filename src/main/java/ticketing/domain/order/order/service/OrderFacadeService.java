@@ -127,17 +127,17 @@ public class OrderFacadeService {
 		}
 
 		try {
-			CancelDTO.Validated validated = orderCommandService.validateCancel(command);
+			CancelDTO.Prepared prepared = orderCommandService.prepareCancel(command);
 
 			// 실제 환불 - 외부 API 호출 (트랜잭션 밖)
-			kakaoPayApiClient.cancel(validated.getTid(), validated.getAmount());
+			kakaoPayApiClient.cancel(prepared.getTid(), prepared.getAmount());
 
 			try {
 				return orderCommandService.completeCancel(command);
 			} catch (Exception e) {
 				log.error(
 					"[OrderFacadeService] - cancelAll() PG 환불은 성공했으나 로컬 취소 반영에 실패했습니다. orderId={}, tid={}, amount={}",
-					command.getOrderId(), validated.getTid(), validated.getAmount(), e
+					command.getOrderId(), prepared.getTid(), prepared.getAmount(), e
 				);
 				throw e;
 			}

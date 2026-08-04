@@ -62,6 +62,10 @@ public class Payment extends BaseEntity {
 		this.approvedAt = LocalDateTime.now();
 	}
 
+	public void requestCancel() {
+		this.status = PaymentStatus.CANCEL_REQUESTED;
+	}
+
 	public void cancel() {
 		this.status = PaymentStatus.CANCELLED;
 	}
@@ -71,8 +75,9 @@ public class Payment extends BaseEntity {
 	}
 
 	public enum PaymentStatus {
-		READY,
-		APPROVED,
-		CANCELLED
+		READY,				// 결제 준비 완료, 승인 대기
+		APPROVED,			// 결제 승인 완료
+		CANCEL_REQUESTED,	// 환불 요청됨, PG 결과가 로컬에 반영되기 전
+		CANCELLED			// 환불 완료
 	}
 }

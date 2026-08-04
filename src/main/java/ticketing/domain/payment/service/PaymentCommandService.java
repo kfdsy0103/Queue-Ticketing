@@ -38,15 +38,68 @@ public class PaymentCommandService {
 	private final RedisUtil redisUtil;
 
 	/**
-	 * 생성된 Payment 건 중에 READY 상태로 5분 이상 남아있는 결제 건 하나를 PG사에 상태 조회하고, 환불 처리합니다.
-	 * 		1. 승인이 완료된 경우 -> 환불 및 CANCELLED 처리
-	 * 		2. 승인이 미완료된 경우	-> CANCELLED 처리
+	 * 환불을 요청했으나(CANCEL_REQUESTED) 그 결과를 로컬에 반영하지 못한 채 남은 결제 건을 복구합니다.
+	 * 		1. PG에서 이미 취소된 경우	-> 로컬만 취소 확정
+	 * 		2. 아직 취소되지 않은 경우	-> 환불을 재시도한 뒤 취소 확정
 	 */
-	public void resolveStalePayment(Long paymentId) {
+	public void processCancelRequestedPayment(Long paymentId) {
 
 		Payment payment = paymentRepository.findById(paymentId)
 			.orElseThrow(() -> new GeneralException(PaymentErrorCode.PAYMENT_NOT_FOUND));
 
+		// 이미 처리됨
+		if (payment.getStatus() != Payment.PaymentStatus.CANCEL_REQUESTED) {
+			return;
+		}
+
+		// PG에 실제 상태를 조회 (진짜 API 호출이 실패했는지, 성공은 했는데 로컬 미반영인건지)
+		KakaoPayOrderResponse orderResponse = kakaoPayApiClient.order(
+			KakaoPayOrderRequest.builder()
+				.tid(payment.getTid())
+				.build()
+		);
+
+		// 아예 호출이 실패한 경우면 다시 호출
+		if (orderResponse.getStatus() != KakaoPayStatus.CANCEL_PAYMENT) {
+			kakaoPayApiClient.cancel(payment.getTid(), payment.getTotalPrice());
+			log.warn(
+				"[PaymentCommandService] - resolveStaleCancel() 환불이 반영되지 않은 상태로 감지되어 재요청했습니다. paymentId={}, tid={}, pgStatus={}",
+				paymentId, payment.getTid(), orderResponse.getStatus()
+			);
+		}
+
+		Order order = payment.getOrder();
+		List<OrderItem> orderItems = orderItemRepository.findAllByOrderIdWithScheduleSeat(order.getId());
+
+		// orderItem에 연결된 좌석 cancel
+		orderItems.forEach(orderItem -> orderItem.getScheduleSeat().cancel());
+
+		// orderItem cancel
+		orderItems.forEach(OrderItem::cancel);
+
+		// payment cancel
+		payment.cancel();
+
+		// order cancel
+		order.cancel();
+
+		log.info(
+			"[PaymentCommandService] - resolveStaleCancel() 반영되지 못한 환불 건의 로컬 취소를 마무리했습니다. paymentId={}, orderId={}",
+			paymentId, order.getId()
+		);
+	}
+
+	/**
+	 * 생성된 Payment 건 중에 READY 상태로 5분 이상 남아있는 결제 건 하나를 PG사에 상태 조회하고, 환불 처리합니다.
+	 * 		1. 승인이 완료된 경우 -> 환불 및 CANCELLED 처리
+	 * 		2. 승인이 미완료된 경우	-> CANCELLED 처리
+	 */
+	public void processReadyPayment(Long paymentId) {
+
+		Payment payment = paymentRepository.findById(paymentId)
+			.orElseThrow(() -> new GeneralException(PaymentErrorCode.PAYMENT_NOT_FOUND));
+
+		// 이미 처리됨
 		if (payment.getStatus() != Payment.PaymentStatus.READY) {
 			return;
 		}
