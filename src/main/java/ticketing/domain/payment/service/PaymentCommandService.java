@@ -81,6 +81,9 @@ public class PaymentCommandService {
 		// orderItems 만료
 		orderItems.forEach(OrderItem::expire);
 
+		// order 만료
+		order.expire();
+
 		// 주문이 종료되었으므로 재점유를 막던 점유 Key 해제 (다른 사용자가 점유했다면 해제 X)
 		List<String> occupyKeys = orderItems.stream()
 			.map(orderItem -> ScheduleSeatRedisKeys.occupyKey(orderItem.getScheduleSeat().getId()))
@@ -88,8 +91,6 @@ public class PaymentCommandService {
 		if (!occupyKeys.isEmpty()) {
 			redisUtil.execute(RELEASE_OCCUPY_SCRIPT, occupyKeys, order.getUser().getId().toString());
 		}
-
-		order.expire();
 
 		log.info(
 			"[PaymentCommandService] - resolveStalePayment() 결제 건이 종료 처리되어 더 이상 완료될 수 없는 주문을 만료 처리했습니다. orderId={}",

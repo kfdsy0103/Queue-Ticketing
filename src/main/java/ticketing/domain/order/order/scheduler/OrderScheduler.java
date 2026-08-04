@@ -37,18 +37,18 @@ public class OrderScheduler {
 	 */
 	@Async("schedulerTaskExecutor")
 	@Scheduled(fixedDelay = 60000)
-	@SchedulerLock(name = "processPendingOrder", lockAtLeastFor = "PT10S", lockAtMostFor = "PT50S")
-	public void processPendingOrders() {
+	@SchedulerLock(name = "processOrphanedPendingOrder", lockAtLeastFor = "PT10S", lockAtMostFor = "PT50S")
+	public void processOrphanedPendingOrders() {
 
 		LocalDateTime threshold = LocalDateTime.now().minus(STALE_PENDING_THRESHOLD);
 
-		List<Order> orphanedOrders = orderRepository.findStalePendingOrdersWithoutPayment(
+		List<Order> orphanedPendingOrders = orderRepository.findOrphanedPendingOrdersWithoutPayment(
 			Order.OrderStatus.PENDING,
 			threshold
 		);
 
 		int expiredCount = 0;
-		for (Order order : orphanedOrders) {
+		for (Order order : orphanedPendingOrders) {
 
 			String lockKey = OrderRedisKeys.confirmLockKey(order.getId());
 			if (!redisLockService.tryLock(lockKey, "scheduler", LOCK_TTL)) {
