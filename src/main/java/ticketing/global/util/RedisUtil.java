@@ -2,13 +2,12 @@ package ticketing.global.util;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import lombok.RequiredArgsConstructor;
 
@@ -87,6 +86,13 @@ public class RedisUtil {
 	 */
 	public boolean hasKey(String key) {
 		return Boolean.TRUE.equals(redisTemplate.hasKey(key));
+	}
+
+	/**
+	 * Key의 남은 TTL을 초 단위로 조회합니다. (TTL) Key가 없거나 만료 시간이 없으면 음수가 반환됩니다.
+	 */
+	public Long getExpire(String key) {
+		return redisTemplate.getExpire(key, TimeUnit.SECONDS);
 	}
 
 	/**

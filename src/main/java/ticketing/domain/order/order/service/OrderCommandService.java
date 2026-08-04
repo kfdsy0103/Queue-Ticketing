@@ -25,10 +25,7 @@ import ticketing.domain.order.order.entity.Order;
 import ticketing.domain.order.order.exception.OrderErrorCode;
 import ticketing.domain.order.order.repository.OrderRepository;
 import ticketing.domain.order.orderitem.entity.OrderItem;
-import ticketing.domain.order.orderitem.entity.OrderItemHistory;
-import ticketing.domain.order.orderitem.repository.OrderItemHistoryRepository;
 import ticketing.domain.order.orderitem.repository.OrderItemRepository;
-import ticketing.domain.payment.client.KakaoPayApiClient;
 import ticketing.domain.payment.client.dto.KakaoPayApproveResponse;
 import ticketing.domain.payment.entity.Payment;
 import ticketing.domain.payment.exception.PaymentErrorCode;
@@ -58,10 +55,8 @@ public class OrderCommandService {
 	private final UserRepository userRepository;
 	private final ScheduleSeatRepository scheduleSeatRepository;
 	private final OrderItemRepository orderItemRepository;
-	private final OrderItemHistoryRepository orderItemHistoryRepository;
 	private final SchedulePriceRepository schedulePriceRepository;
 	private final PaymentRepository paymentRepository;
-	private final KakaoPayApiClient kakaoPayApiClient;
 	private final RedisUtil redisUtil;
 
 	/**
@@ -114,7 +109,7 @@ public class OrderCommandService {
 			.mapToInt(SchedulePrice::getPrice)
 			.sum();
 
-		// Order - OrderItem - ScheduleSeat 연결을 통한 주문 생성 save
+		// Order 생성
 		Order order = Order.builder()
 			.user(user)
 			.orderStatus(Order.OrderStatus.PENDING)	// 최초 생성 시에는 PENDING으로
@@ -122,13 +117,16 @@ public class OrderCommandService {
 			.build();
 		orderRepository.save(order);
 
+		// Order 기반으로 나머지 OrderItem - ScheduleSeat 연결 및 생성
 		List<OrderItem> orderItems = new ArrayList<>();
 		for (int i = 0; i < scheduleSeats.size(); i++) {
-			orderItems.add(OrderItem.builder()
+			OrderItem orderItem = OrderItem.builder()
 				.order(order)
 				.scheduleSeat(scheduleSeats.get(i))
 				.price(schedulePrices.get(i).getPrice())
-				.build());
+				.status(OrderItem.Status.PENDING)
+				.build();
+			orderItems.add(orderItem);
 		}
 		orderItemRepository.saveAll(orderItems);
 
@@ -158,10 +156,9 @@ public class OrderCommandService {
 	}
 
 	/**
-	 * 아직 결제가 붙지 않은 PENDING 주문을 취소합니다. 취소했으면 true를 반환합니다.
-	 * ready() 실패 보상 및 orphan 청소 스케줄러에서 재사용됩니다. (좌석은 SOLD가 아니므로 PG 환불/좌석 복구 불필요)
+	 * 아직 결제가 붙지 않은 PENDING 주문을 EXPIRED로 만료시킵니다.
 	 */
-	public boolean cancelPendingOrder(Long orderId) {
+	public boolean expirePendingOrder(Long orderId) {
 		Order order = orderRepository.findById(orderId)
 			.orElseThrow(() -> new GeneralException(OrderErrorCode.ORDER_NOT_FOUND));
 
@@ -170,6 +167,7 @@ public class OrderCommandService {
 			return false;
 		}
 
+		// Order에 달려있는 OrderItem 조회
 		List<OrderItem> orderItems = orderItemRepository.findAllByOrderIdWithScheduleSeat(orderId);
 
 		// 재점유를 막던 점유 Key 해제 (다른 사용자가 점유했다면 해제 X)
@@ -180,8 +178,12 @@ public class OrderCommandService {
 			redisUtil.execute(RELEASE_OCCUPY_SCRIPT, occupyKeys, order.getUser().getId().toString());
 		}
 
-		orderItemRepository.deleteAll(orderItems);
-		order.cancel();
+		// orderItem 만료
+		orderItems.forEach(OrderItem::expire);
+
+		// order 만료
+		order.expire();
+
 		return true;
 	}
 
@@ -202,6 +204,11 @@ public class OrderCommandService {
 			throw new GeneralException(PaymentErrorCode.ALREADY_PAID);
 		}
 
+		// 만료·취소되어 더 이상 결제될 수 없는 주문인 경우
+		if (order.getOrderStatus() != Order.OrderStatus.PENDING) {
+			throw new GeneralException(OrderErrorCode.NOT_PENDING_ORDER);
+		}
+
 		// orderId로 생성된 결제 준비 건 조회
 		Payment payment = paymentRepository.findByOrderId(order.getId())
 			.orElseThrow(() -> new GeneralException(PaymentErrorCode.PAYMENT_NOT_FOUND));
@@ -211,8 +218,16 @@ public class OrderCommandService {
 			throw new GeneralException(PaymentErrorCode.AMOUNT_MISMATCH);
 		}
 
-		// 출금 전, 주문에 속한 좌석들을 지금도 본인이 Redis에서 점유 중인지 재확인 (TTL 만료 대비)
+		// 출금 전, 주문에 속한 좌석들을 지금도 본인이 Redis에서 점유 중인지 확인
 		List<OrderItem> orderItems = orderItemRepository.findAllByOrderIdWithScheduleSeat(order.getId());
+
+		// 항목이 하나도 없는 비정상 주문에 대한 방어.
+		// verify-occupy.lua는 KEYS가 비면 루프를 돌지 않고 성공(1)을 반환하므로, 여기서 먼저 막지 않으면
+		// 좌석을 하나도 검증하지 않은 채 점유 확인을 통과해 결제 승인으로 넘어간다.
+		if (orderItems.isEmpty()) {
+			throw new GeneralException(ScheduleSeatErrorCode.NOT_OCCUPIED_BY_USER);
+		}
+
 		List<String> occupyKeys = orderItems.stream()
 			.map(orderItem -> ScheduleSeatRedisKeys.occupyKey(orderItem.getScheduleSeat().getId()))
 			.toList();
@@ -227,7 +242,10 @@ public class OrderCommandService {
 			throw new GeneralException(ScheduleSeatErrorCode.NOT_OCCUPIED_BY_USER);
 		}
 
-		return new ConfirmDTO.Validated(payment.getTid(), payment.getTotalPrice());
+		return ConfirmDTO.Validated.builder()
+			.tid(payment.getTid())
+			.amount(payment.getTotalPrice())
+			.build();
 	}
 
 	/**
@@ -242,6 +260,11 @@ public class OrderCommandService {
 			throw new GeneralException(PaymentErrorCode.ALREADY_PAID);
 		}
 
+		// 만료·취소되어 더 이상 확정될 수 없는 주문인 경우
+		if (order.getOrderStatus() != Order.OrderStatus.PENDING) {
+			throw new GeneralException(OrderErrorCode.NOT_PENDING_ORDER);
+		}
+
 		Payment payment = paymentRepository.findByOrderId(order.getId())
 			.orElseThrow(() -> new GeneralException(PaymentErrorCode.PAYMENT_NOT_FOUND));
 
@@ -252,14 +275,23 @@ public class OrderCommandService {
 
 		List<OrderItem> orderItems = orderItemRepository.findAllByOrderIdWithScheduleSeat(order.getId());
 
-		// Payment 건 APPROVED 처리 (변경 감지)
+		// Payment 엔티티 확정
 		payment.approve(approveResponse.getAid());
 
-		// 결제 완료된 주문에 속한 좌석들을 SOLD 처리 (변경 감지)
+		// orderItems 확정
+		orderItems.forEach(OrderItem::confirm);
+
+		// orderItem 에 연결된 좌석들을 SOLD 처리
 		orderItems.forEach(orderItem -> orderItem.getScheduleSeat().sell());
 
-		// Order 건 최종 COMPLETED 처리 (변경 감지)
+		// order 확정
 		order.complete();
+
+		// redis에서 좌석 점유 키 해제 (메모리)
+		List<String> occupyKeys = orderItems.stream()
+			.map(orderItem -> ScheduleSeatRedisKeys.occupyKey(orderItem.getScheduleSeat().getId()))
+			.toList();
+		redisUtil.execute(RELEASE_OCCUPY_SCRIPT, occupyKeys, command.getUserId().toString());
 
 		return ConfirmDTO.Result.builder()
 			.orderId(order.getId())
@@ -271,7 +303,10 @@ public class OrderCommandService {
 			.build();
 	}
 
-	public CancelDTO.Result cancelAll(CancelDTO.Command command) {
+	/**
+	 * 소유자/상태를 검증하고 PG 환불 호출에 필요한 값을 반환합니다. (외부 PG 호출 없음)
+	 */
+	public CancelDTO.Validated validateCancel(CancelDTO.Command command) {
 		Order order = orderRepository.findById(command.getOrderId())
 			.orElseThrow(() -> new GeneralException(OrderErrorCode.ORDER_NOT_FOUND));
 
@@ -280,7 +315,12 @@ public class OrderCommandService {
 			throw new GeneralException(GeneralErrorCode.FORBIDDEN);
 		}
 
-		// 결제 완료된 주문만 전체 취소 가능
+		// 이미 캔슬된 주문건 (멱등)
+		if (order.getOrderStatus() == Order.OrderStatus.CANCELLED) {
+			throw new GeneralException(OrderErrorCode.ALREADY_CANCELLED_ORDER);
+		}
+
+		// 결제 완료된 주문만 취소 가능
 		if (order.getOrderStatus() != Order.OrderStatus.COMPLETED) {
 			throw new GeneralException(OrderErrorCode.ORDER_NOT_COMPLETED);
 		}
@@ -288,26 +328,34 @@ public class OrderCommandService {
 		Payment payment = paymentRepository.findByOrderId(order.getId())
 			.orElseThrow(() -> new GeneralException(PaymentErrorCode.PAYMENT_NOT_FOUND));
 
-		// 카카오페이 전체 취소(잔여 결제 금액 기준) - 외부 API 호출
-		kakaoPayApiClient.cancel(payment.getTid(), order.getTotalPrice());
+		return CancelDTO.Validated.builder()
+			.tid(payment.getTid())
+			.amount(order.getTotalPrice())
+			.build();
+	}
 
-		// 남은 모든 주문 항목의 좌석을 AVAILABLE로 되돌리고 항목 삭제 (삭제 전 감사 이력 기록)
+	/**
+	 * 이미 환불된 결과를 받아 좌석/OrderItem/Order 상태를 취소로 확정합니다.
+	 */
+	public CancelDTO.Result completeCancel(CancelDTO.Command command) {
+		Order order = orderRepository.findById(command.getOrderId())
+			.orElseThrow(() -> new GeneralException(OrderErrorCode.ORDER_NOT_FOUND));
+
+		Payment payment = paymentRepository.findByOrderId(order.getId())
+			.orElseThrow(() -> new GeneralException(PaymentErrorCode.PAYMENT_NOT_FOUND));
+
 		List<OrderItem> orderItems = orderItemRepository.findAllByOrderIdWithScheduleSeat(order.getId());
+
+		// 취소할 orderItem에 연결된 좌석 상태를 SOLD -> AVAILABLE로 변경
 		orderItems.forEach(orderItem -> orderItem.getScheduleSeat().cancel());
 
-		List<OrderItemHistory> orderItemHistories = orderItems.stream()
-			.map(orderItem -> OrderItemHistory.from(orderItem, OrderItemHistory.Reason.CANCELLED_ALL))
-			.toList();
-		orderItemHistoryRepository.saveAll(orderItemHistories);
+		// orderItems cancel
+		orderItems.forEach(OrderItem::cancel);
 
-		orderItemRepository.deleteAll(orderItems);
+		// 환불이 끝난 결제 건도 CANCELLED로 확정
+		payment.cancel();
 
-		// 주문이 종료되었으므로 재점유를 막던 점유 Key 해제 (그 사이 다른 사용자가 재점유했다면 건드리지 않음)
-		List<String> occupyKeys = orderItems.stream()
-			.map(orderItem -> ScheduleSeatRedisKeys.occupyKey(orderItem.getScheduleSeat().getId()))
-			.toList();
-		redisUtil.execute(RELEASE_OCCUPY_SCRIPT, occupyKeys, command.getUserId().toString());
-
+		// order cancel (COMPLETED가 아니면 여기서 막힌다)
 		order.cancel();
 
 		return CancelDTO.Result.builder()

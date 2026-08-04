@@ -49,8 +49,8 @@ public class Order extends BaseEntity {
     }
 
     public void cancel() {
-        if (this.orderStatus == OrderStatus.CANCELLED) {
-            throw new GeneralException(OrderErrorCode.ALREADY_CANCELLED_ORDER);
+        if (this.orderStatus != OrderStatus.COMPLETED) {
+            throw new GeneralException(OrderErrorCode.ORDER_NOT_COMPLETED);
         }
         this.orderStatus = OrderStatus.CANCELLED;
     }

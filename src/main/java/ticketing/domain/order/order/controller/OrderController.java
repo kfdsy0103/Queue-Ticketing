@@ -17,7 +17,6 @@ import ticketing.domain.order.order.dto.CancelDTO;
 import ticketing.domain.order.order.dto.ConfirmDTO;
 import ticketing.domain.order.order.dto.CreateDTO;
 import ticketing.domain.order.order.dto.FindDTO;
-import ticketing.domain.order.order.service.OrderCommandService;
 import ticketing.domain.order.order.service.OrderFacadeService;
 import ticketing.domain.order.order.service.OrderQueryService;
 import ticketing.global.apiPayload.CommonResponse;
@@ -30,7 +29,6 @@ import ticketing.global.apiPayload.code.GeneralSuccessCode;
 public class OrderController {
 
 	private final OrderQueryService orderQueryService;
-	private final OrderCommandService orderCommandService;
 	private final OrderFacadeService orderFacadeService;
 
 	/**
@@ -71,7 +69,7 @@ public class OrderController {
 	@DeleteMapping("/{orderId}/cancel-all")
 	public CommonResponse<CancelDTO.Response> cancelAll(@PathVariable Long orderId, @RequestParam Long userId) {
 		log.info("[OrderController] cancel() 호출 - userId: {}, orderId: {}", orderId, userId);
-		CancelDTO.Result result = orderCommandService.cancelAll(CancelDTO.Command.of(orderId, userId));
+		CancelDTO.Result result = orderFacadeService.cancelAll(CancelDTO.Command.of(orderId, userId));
 		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
 	}
 }

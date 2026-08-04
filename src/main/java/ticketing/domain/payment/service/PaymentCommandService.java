@@ -12,8 +12,6 @@ import lombok.extern.slf4j.Slf4j;
 import ticketing.domain.concert.scheduleseat.constants.ScheduleSeatRedisKeys;
 import ticketing.domain.order.order.entity.Order;
 import ticketing.domain.order.orderitem.entity.OrderItem;
-import ticketing.domain.order.orderitem.entity.OrderItemHistory;
-import ticketing.domain.order.orderitem.repository.OrderItemHistoryRepository;
 import ticketing.domain.order.orderitem.repository.OrderItemRepository;
 import ticketing.domain.payment.client.KakaoPayApiClient;
 import ticketing.domain.payment.client.dto.KakaoPayOrderRequest;
@@ -36,7 +34,6 @@ public class PaymentCommandService {
 
 	private final PaymentRepository paymentRepository;
 	private final OrderItemRepository orderItemRepository;
-	private final OrderItemHistoryRepository orderItemHistoryRepository;
 	private final KakaoPayApiClient kakaoPayApiClient;
 	private final RedisUtil redisUtil;
 
@@ -81,23 +78,21 @@ public class PaymentCommandService {
 		Order order = payment.getOrder();
 		List<OrderItem> orderItems = orderItemRepository.findAllByOrderIdWithScheduleSeat(order.getId());
 
-		// OrderItem에 unique가 걸려있어 이력 따로 관리
-		List<OrderItemHistory> orderItemHistories = orderItems.stream()
-			.map(orderItem -> OrderItemHistory.from(orderItem, OrderItemHistory.Reason.EXPIRED))
-			.toList();
-		orderItemHistoryRepository.saveAll(orderItemHistories);
-		orderItemRepository.deleteAll(orderItems);
+		// orderItems 만료
+		orderItems.forEach(OrderItem::expire);
 
 		// 주문이 종료되었으므로 재점유를 막던 점유 Key 해제 (다른 사용자가 점유했다면 해제 X)
 		List<String> occupyKeys = orderItems.stream()
 			.map(orderItem -> ScheduleSeatRedisKeys.occupyKey(orderItem.getScheduleSeat().getId()))
 			.toList();
-		redisUtil.execute(RELEASE_OCCUPY_SCRIPT, occupyKeys, order.getUser().getId().toString());
+		if (!occupyKeys.isEmpty()) {
+			redisUtil.execute(RELEASE_OCCUPY_SCRIPT, occupyKeys, order.getUser().getId().toString());
+		}
 
-		order.cancel();
+		order.expire();
 
 		log.info(
-			"[PaymentCommandService] - resolveStalePayment() 결제 건이 종료 처리되어 더 이상 완료될 수 없는 주문을 취소 처리했습니다. orderId={}",
+			"[PaymentCommandService] - resolveStalePayment() 결제 건이 종료 처리되어 더 이상 완료될 수 없는 주문을 만료 처리했습니다. orderId={}",
 			order.getId()
 		);
 	}
