@@ -16,6 +16,7 @@ import ticketing.domain.payment.client.dto.KakaoPayApproveRequest;
 import ticketing.domain.payment.client.dto.KakaoPayApproveResponse;
 import ticketing.domain.payment.client.dto.KakaoPayReadyRequest;
 import ticketing.domain.payment.client.dto.KakaoPayReadyResponse;
+import ticketing.domain.payment.service.PaymentCommandService;
 import ticketing.global.apiPayload.exception.GeneralException;
 import ticketing.global.util.RedisLockService;
 
@@ -28,6 +29,7 @@ public class OrderFacadeService {
 	private static final Duration CREATE_LOCK_TTL = Duration.ofSeconds(5);
 
 	private final OrderCommandService orderCommandService;
+	private final PaymentCommandService paymentCommandService;
 	private final KakaoPayApiClient kakaoPayApiClient;
 	private final RedisLockService redisLockService;
 
@@ -46,7 +48,7 @@ public class OrderFacadeService {
 
 		Long orderId;
 		try {
-			orderId = orderCommandService.createPendingOrder(command);
+			orderId = orderCommandService.createOrder(command);
 		} finally {
 			redisLockService.releaseLock(lockKey);
 		}
@@ -58,7 +60,7 @@ public class OrderFacadeService {
 					.build()
 			);
 
-			orderCommandService.attachPayment(
+			paymentCommandService.createPayment(
 				orderId,
 				command.getPaymentMethod(),
 				readyResponse.getTid(),
@@ -70,7 +72,7 @@ public class OrderFacadeService {
 				.redirectUrl(readyResponse.getRedirectUrl())
 				.build();
 		} catch (Exception e) {
-			orderCommandService.expirePendingOrder(orderId);
+			orderCommandService.expireOrder(orderId);
 			throw e;
 		}
 	}

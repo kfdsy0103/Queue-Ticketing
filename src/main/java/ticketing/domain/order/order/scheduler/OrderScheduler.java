@@ -56,7 +56,7 @@ public class OrderScheduler {
 			}
 
 			try {
-				if (orderCommandService.expirePendingOrder(order.getId())) {
+				if (orderCommandService.expireOrder(order.getId())) {
 					expiredCount++;
 				}
 			} catch (Exception e) {

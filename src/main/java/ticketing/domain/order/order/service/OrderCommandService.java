@@ -59,7 +59,7 @@ public class OrderCommandService {
 	 * 주문 생성 1단계: 좌석/점유 검증 후 Order(PENDING)와 OrderItem을 저장합니다. (외부 PG 호출 없음)
 	 * PG ready() 호출은 이 트랜잭션 밖에서 수행되도록 OrderFacadeService가 오케스트레이션합니다.
 	 */
-	public Long createPendingOrder(CreateDTO.Command command) {
+	public Long createOrder(CreateDTO.Command command) {
 		User user = userRepository.findById(command.getUserId())
 			.orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
 
@@ -130,27 +130,9 @@ public class OrderCommandService {
 	}
 
 	/**
-	 * 주문 생성 2단계: PG ready() 성공 이후 발급받은 tid/redirectUrl로 Payment(READY)를 저장합니다.
-	 */
-	public void attachPayment(Long orderId, Payment.PaymentMethod method, String tid, String redirectUrl) {
-		Order order = orderRepository.findById(orderId)
-			.orElseThrow(() -> new GeneralException(OrderErrorCode.ORDER_NOT_FOUND));
-
-		Payment payment = Payment.builder()
-			.order(order)
-			.method(method)
-			.status(Payment.PaymentStatus.READY)
-			.tid(tid)
-			.redirectUrl(redirectUrl)
-			.totalPrice(order.getTotalPrice())
-			.build();
-		paymentRepository.save(payment);
-	}
-
-	/**
 	 * 아직 결제가 붙지 않은 PENDING 주문을 EXPIRED로 만료시킵니다.
 	 */
-	public boolean expirePendingOrder(Long orderId) {
+	public boolean expireOrder(Long orderId) {
 		Order order = orderRepository.findById(orderId)
 			.orElseThrow(() -> new GeneralException(OrderErrorCode.ORDER_NOT_FOUND));
 

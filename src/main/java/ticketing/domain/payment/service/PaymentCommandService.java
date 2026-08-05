@@ -11,6 +11,8 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ticketing.domain.concert.scheduleseat.constants.ScheduleSeatRedisKeys;
 import ticketing.domain.order.order.entity.Order;
+import ticketing.domain.order.order.exception.OrderErrorCode;
+import ticketing.domain.order.order.repository.OrderRepository;
 import ticketing.domain.order.orderitem.entity.OrderItem;
 import ticketing.domain.order.orderitem.repository.OrderItemRepository;
 import ticketing.domain.payment.client.KakaoPayApiClient;
@@ -33,9 +35,28 @@ public class PaymentCommandService {
 		RedisScript.of(new ClassPathResource("luaScripts/release-occupy.lua"), Long.class);
 
 	private final PaymentRepository paymentRepository;
+	private final OrderRepository orderRepository;
 	private final OrderItemRepository orderItemRepository;
 	private final KakaoPayApiClient kakaoPayApiClient;
 	private final RedisUtil redisUtil;
+
+	/**
+	 * PG ready() 성공 이후 발급받은 tid/redirectUrl로 Payment(READY)를 저장합니다.
+	 */
+	public void createPayment(Long orderId, Payment.PaymentMethod method, String tid, String redirectUrl) {
+		Order order = orderRepository.findById(orderId)
+			.orElseThrow(() -> new GeneralException(OrderErrorCode.ORDER_NOT_FOUND));
+
+		Payment payment = Payment.builder()
+			.order(order)
+			.method(method)
+			.status(Payment.PaymentStatus.READY)
+			.tid(tid)
+			.redirectUrl(redirectUrl)
+			.totalPrice(order.getTotalPrice())
+			.build();
+		paymentRepository.save(payment);
+	}
 
 	/**
 	 * 환불을 요청했으나(CANCEL_REQUESTED) 그 결과를 로컬에 반영하지 못한 채 남은 결제 건을 복구합니다.
