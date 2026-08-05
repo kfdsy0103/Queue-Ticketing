@@ -1,6 +1,5 @@
 package ticketing.domain.order.order.service;
 
-import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -47,9 +46,6 @@ public class OrderCommandService {
 		RedisScript.of(new ClassPathResource("luaScripts/verify-occupy.lua"), Long.class);
 	private static final RedisScript<Long> RELEASE_OCCUPY_SCRIPT =
 		RedisScript.of(new ClassPathResource("luaScripts/release-occupy.lua"), Long.class);
-
-	// 결제 제한 시간을 5분
-	private static final Duration PAYING_TTL = Duration.ofMinutes(5);
 
 	private final OrderRepository orderRepository;
 	private final UserRepository userRepository;
@@ -129,10 +125,6 @@ public class OrderCommandService {
 			orderItems.add(orderItem);
 		}
 		orderItemRepository.saveAll(orderItems);
-
-		// 주문 처리 중에 재점유되지 않도록 TTL을 연장
-		command.getScheduleSeatIds().forEach(scheduleSeatId ->
-			redisUtil.expire(ScheduleSeatRedisKeys.occupyKey(scheduleSeatId), PAYING_TTL));
 
 		return order.getId();
 	}
