@@ -1,5 +1,6 @@
 package ticketing.domain.concert.scheduleseat.repository;
 
+import java.util.Collection;
 import java.util.List;
 
 import org.springframework.data.jpa.repository.JpaRepository;
@@ -29,5 +30,19 @@ public interface ScheduleSeatRepository extends JpaRepository<ScheduleSeat, Long
 	List<ScheduleSeatGradeProjection> findSeatGradesByConcertScheduleIdAndSeatStatus(
 		@Param("concertScheduleId") Long concertScheduleId,
 		@Param("seatStatus") ScheduleSeat.SeatStatus seatStatus
+	);
+
+	/**
+	 * 좌석 번호와 등급까지 함께 필요한 경우를 위해 seat, seatGrade를 fetch join으로 한 번에 조회합니다.
+	 */
+	@Query("""
+		SELECT ss
+		FROM ScheduleSeat ss
+		    JOIN FETCH ss.seat s
+		    JOIN FETCH s.seatGrade
+		WHERE ss.id IN :scheduleSeatIds
+		""")
+	List<ScheduleSeat> findAllByIdInWithSeatGrade(
+		@Param("scheduleSeatIds") Collection<Long> scheduleSeatIds
 	);
 }

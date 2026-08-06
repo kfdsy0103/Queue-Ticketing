@@ -2,6 +2,7 @@ package ticketing.global.util;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.data.redis.core.RedisTemplate;
@@ -100,5 +101,12 @@ public class RedisUtil {
 	 */
 	public List<Object> multiGet(List<String> keys) {
 		return redisTemplate.opsForValue().multiGet(keys);
+	}
+
+	/**
+	 * Sorted Set에서 score와 함께 조회합니다. (ZRANGE 0 -1 WITHSCORES)
+	 */
+	public Set<ZSetOperations.TypedTuple<Object>> zRangeWithScores(String key) {
+		return opsForZSet().rangeWithScores(key, 0, -1);
 	}
 }

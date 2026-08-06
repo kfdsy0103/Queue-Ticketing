@@ -1,6 +1,6 @@
-// 내가 현재 점유 중인 좌석 목록 조회 요청/응답 DTO
 package ticketing.domain.concert.scheduleseat.dto;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 import lombok.Builder;
@@ -30,7 +30,7 @@ public class FindOccupyDTO {
 		String seatNumber;
 		String seatGradeName;
 		int price;
-		Long remainingSeconds;
+		LocalDateTime expiresAt;
 	}
 
 	@Getter
