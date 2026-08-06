@@ -13,20 +13,21 @@ public interface ScheduleSeatRepository extends JpaRepository<ScheduleSeat, Long
 	List<ScheduleSeat> findAllByConcertScheduleId(Long concertScheduleId);
 
 	/**
-	 * 잔여 좌석 집계에 필요한 컬럼만 Projection으로 조회합니다.
+	 * 잔여 좌석 집계에 필요한 컬럼만, 지정한 상태의 좌석에 한해 Projection으로 조회합니다.
 	 */
 	@Query("""
 		SELECT ss.id AS scheduleSeatId,
-		       ss.seatStatus AS seatStatus,
 		       sg.id AS seatGradeId,
 		       sg.name AS seatGradeName
 		FROM ScheduleSeat ss
 		    JOIN ss.seat s
 		    JOIN s.seatGrade sg
 		WHERE ss.concertSchedule.id = :concertScheduleId
+		  AND ss.seatStatus = :seatStatus
 		ORDER BY sg.id
 		""")
-	List<ScheduleSeatGradeProjection> findSeatGradesByConcertScheduleId(
-		@Param("concertScheduleId") Long concertScheduleId
+	List<ScheduleSeatGradeProjection> findSeatGradesByConcertScheduleIdAndSeatStatus(
+		@Param("concertScheduleId") Long concertScheduleId,
+		@Param("seatStatus") ScheduleSeat.SeatStatus seatStatus
 	);
 }

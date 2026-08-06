@@ -2,7 +2,6 @@ package ticketing.domain.concert.concertschedule.dto;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.List;
 
 import lombok.Builder;
 import lombok.Getter;
@@ -29,15 +28,13 @@ public class FindDTO {
 		Long concertId;
 		LocalDate performanceDate;
 		LocalDateTime ticketOpenAt;
-		List<SeatGradeRemaining> seatGrades;
 
-		public static Result from(ConcertSchedule concertSchedule, List<SeatGradeRemaining> seatGrades) {
+		public static Result from(ConcertSchedule concertSchedule) {
 			return Result.builder()
 				.concertScheduleId(concertSchedule.getId())
 				.concertId(concertSchedule.getConcert().getId())
 				.performanceDate(concertSchedule.getPerformanceDate())
 				.ticketOpenAt(concertSchedule.getTicketOpenAt())
-				.seatGrades(seatGrades)
 				.build();
 		}
 
@@ -47,23 +44,6 @@ public class FindDTO {
 				.concertId(concertId)
 				.performanceDate(performanceDate)
 				.ticketOpenAt(ticketOpenAt)
-				.seatGrades(seatGrades)
-				.build();
-		}
-	}
-
-	@Getter
-	@Builder
-	public static class SeatGradeRemaining {
-		Long seatGradeId;
-		String seatGradeName;
-		Long remainingSeatCount;
-
-		public static SeatGradeRemaining of(Long seatGradeId, String seatGradeName, long remainingSeatCount) {
-			return SeatGradeRemaining.builder()
-				.seatGradeId(seatGradeId)
-				.seatGradeName(seatGradeName)
-				.remainingSeatCount(remainingSeatCount)
 				.build();
 		}
 	}
@@ -75,6 +55,5 @@ public class FindDTO {
 		Long concertId;
 		LocalDate performanceDate;
 		LocalDateTime ticketOpenAt;
-		List<SeatGradeRemaining> seatGrades;
 	}
 }

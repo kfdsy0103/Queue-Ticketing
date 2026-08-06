@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ticketing.domain.concert.scheduleseat.dto.FindAllDTO;
 import ticketing.domain.concert.scheduleseat.dto.FindOccupyDTO;
+import ticketing.domain.concert.scheduleseat.dto.FindRemainingDTO;
 import ticketing.domain.concert.scheduleseat.dto.OccupyDTO;
 import ticketing.domain.concert.scheduleseat.service.ScheduleSeatService;
 import ticketing.global.apiPayload.CommonResponse;
@@ -65,6 +66,19 @@ public class ScheduleSeatController {
 		@RequestParam Long userId, @RequestParam String token) {
 		log.info("[ScheduleSeatController] findAll() 호출 - userId: {}, concertScheduleId: {}", userId, concertScheduleId);
 		FindAllDTO.Result result = scheduleSeatService.findAll(FindAllDTO.Command.of(userId, concertScheduleId, token));
+		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
+	}
+
+	/**
+	 * 특정 회차의 좌석 등급별 잔여 좌석 개수를 조회합니다.
+	 */
+	@GetMapping("/remaining")
+	public CommonResponse<FindRemainingDTO.Response> findRemaining(
+		@PathVariable Long concertScheduleId,
+		@RequestParam Long userId
+	) {
+		log.info("[ScheduleSeatController] findRemaining() 호출 - userId: {}, concertScheduleId: {}", userId, concertScheduleId);
+		FindRemainingDTO.Result result = scheduleSeatService.findRemaining(FindRemainingDTO.Command.of(concertScheduleId));
 		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
 	}
 }

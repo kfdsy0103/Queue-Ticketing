@@ -2,9 +2,14 @@ package ticketing.domain.concert.scheduleseat.service;
 
 import java.time.Duration;
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
@@ -17,15 +22,19 @@ import ticketing.domain.concert.scheduleprice.repository.SchedulePriceRepository
 import ticketing.domain.concert.scheduleseat.constants.ScheduleSeatRedisKeys;
 import ticketing.domain.concert.scheduleseat.dto.FindAllDTO;
 import ticketing.domain.concert.scheduleseat.dto.FindOccupyDTO;
+import ticketing.domain.concert.scheduleseat.dto.FindRemainingDTO;
 import ticketing.domain.concert.scheduleseat.dto.OccupyDTO;
 import ticketing.domain.concert.scheduleseat.entity.ScheduleSeat;
 import ticketing.domain.concert.scheduleseat.enums.SeatDisplayStatus;
 import ticketing.domain.concert.scheduleseat.exception.ScheduleSeatErrorCode;
+import ticketing.domain.concert.scheduleseat.repository.ScheduleSeatGradeProjection;
 import ticketing.domain.concert.scheduleseat.repository.ScheduleSeatRepository;
 import ticketing.domain.queue.constants.QueueRedisKeys;
 import ticketing.domain.queue.exception.QueueErrorCode;
 import ticketing.global.apiPayload.code.GeneralErrorCode;
 import ticketing.global.apiPayload.exception.GeneralException;
+import ticketing.global.config.RedisConfig;
+import ticketing.global.constants.CacheName;
 import ticketing.global.util.JwtTokenUtil;
 import ticketing.global.util.RedisUtil;
 
@@ -164,6 +173,48 @@ public class ScheduleSeatService {
 	}
 
 	/**
+	 * 좌석 등급별로 지금 당장 예매 가능한 좌석 개수를 조회합니다.
+	 * 		- DB AVAILABLE이면서, Redis not Occupied인 좌석을 의미
+	 */
+	public FindRemainingDTO.Result findRemaining(FindRemainingDTO.Command command) {
+
+		// 필요 컬럼만 프로젝션 조회
+		List<ScheduleSeatGradeProjection> scheduleSeatGrades =
+			scheduleSeatRepository.findSeatGradesByConcertScheduleIdAndSeatStatus(
+				command.getConcertScheduleId(),
+				ScheduleSeat.SeatStatus.AVAILABLE
+			);
+
+		// Redis에 점유 중인 좌석 조회
+		Set<Long> occupiedSeatIds = findOccupiedSeatIds(scheduleSeatGrades);
+
+		// 좌석 등급 별로 Map으로 정리
+		Map<Long, List<ScheduleSeatGradeProjection>> seatsPerGrade = scheduleSeatGrades.stream()
+			.collect(
+				Collectors.groupingBy(
+					ScheduleSeatGradeProjection::getSeatGradeId,
+					LinkedHashMap::new,
+					Collectors.toList())
+			);
+
+		// Redis not occupied 필터링
+		List<FindRemainingDTO.Result.SeatGradeRemaining> seatGrades = seatsPerGrade.values().stream()
+			.map(seats -> FindRemainingDTO.Result.SeatGradeRemaining.of(
+				seats.getFirst().getSeatGradeId(),
+				seats.getFirst().getSeatGradeName(),
+				seats.stream()
+					.filter(seat -> !occupiedSeatIds.contains(seat.getScheduleSeatId()))
+					.count()
+				)
+			)
+			.toList();
+
+		return FindRemainingDTO.Result.builder()
+			.seatGrades(seatGrades)
+			.build();
+	}
+
+	/**
 	 * 자신이 점유 중인 좌석을 검색합니다.
 	 */
 	public FindOccupyDTO.Result findMyOccupiedSeats(FindOccupyDTO.Command command) {
@@ -213,5 +264,31 @@ public class ScheduleSeatService {
 		return FindOccupyDTO.Result.builder()
 			.seats(items)
 			.build();
+	}
+
+
+	/**
+	 * Redis에 선점 상태인 좌석 목록을 한번에 MGET 조회합니다.
+	 */
+	private Set<Long> findOccupiedSeatIds(List<ScheduleSeatGradeProjection> scheduleSeatGrades) {
+
+		List<Long> availableSeatIds = scheduleSeatGrades.stream()
+			.map(ScheduleSeatGradeProjection::getScheduleSeatId)
+			.toList();
+
+		if (availableSeatIds.isEmpty()) {
+			return Set.of();
+		}
+
+		// occupyKey 만들기
+		List<String> occupyKeys = availableSeatIds.stream()
+			.map(ScheduleSeatRedisKeys::occupyKey)
+			.toList();
+		List<Object> occupyValues = redisUtil.multiGet(occupyKeys);
+
+		return IntStream.range(0, availableSeatIds.size())
+			.filter(i -> occupyValues.get(i) != null)
+			.mapToObj(availableSeatIds::get)
+			.collect(Collectors.toSet());
 	}
 }
