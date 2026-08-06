@@ -109,4 +109,12 @@ public class RedisUtil {
 	public Set<ZSetOperations.TypedTuple<Object>> zRangeWithScores(String key) {
 		return opsForZSet().rangeWithScores(key, 0, -1);
 	}
+
+	/**
+	 * Sorted Set에서 score가 minScore 이상인 member만 조회합니다. (ZRANGEBYSCORE)
+	 * 만료 시각을 score로 쓰는 인덱스에서 아직 유효한 항목만 걸러내는 용도입니다.
+	 */
+	public Set<Object> zRangeByScoreFrom(String key, double minScore) {
+		return opsForZSet().rangeByScore(key, minScore, Double.MAX_VALUE);
+	}
 }

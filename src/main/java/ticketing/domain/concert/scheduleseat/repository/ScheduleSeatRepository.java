@@ -33,16 +33,17 @@ public interface ScheduleSeatRepository extends JpaRepository<ScheduleSeat, Long
 	);
 
 	/**
-	 * 좌석 번호와 등급까지 함께 필요한 경우를 위해 seat, seatGrade를 fetch join으로 한 번에 조회합니다.
+	 * 회차, 좌석 번호, 등급까지 함께 필요한 경우를 위해 연관 엔티티를 fetch join으로 한 번에 조회합니다.
 	 */
 	@Query("""
 		SELECT ss
 		FROM ScheduleSeat ss
+		    JOIN FETCH ss.concertSchedule
 		    JOIN FETCH ss.seat s
 		    JOIN FETCH s.seatGrade
 		WHERE ss.id IN :scheduleSeatIds
 		""")
-	List<ScheduleSeat> findAllByIdInWithSeatGrade(
+	List<ScheduleSeat> findAllByIdInWithScheduleAndSeatGrade(
 		@Param("scheduleSeatIds") Collection<Long> scheduleSeatIds
 	);
 }

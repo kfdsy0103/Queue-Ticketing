@@ -21,7 +21,7 @@ import ticketing.global.apiPayload.code.GeneralSuccessCode;
 
 @Slf4j
 @RestController
-@RequestMapping("/api/v1/concert-schedules/{concertScheduleId}/schedule-seats")
+@RequestMapping("/api/v1")
 @RequiredArgsConstructor
 public class ScheduleSeatController {
 
@@ -31,26 +31,12 @@ public class ScheduleSeatController {
 	 * 여러 좌석을 5분간 선점(점유)합니다. Redis Lua 스크립트로 all-or-nothing 처리되어,
 	 * 다른 사용자가 점유한 좌석이 하나라도 포함되어 있으면 전체 실패합니다.
 	 */
-	@PostMapping("/occupy")
+	@PostMapping("/concert-schedules/{concertScheduleId}/schedule-seats/occupy")
 	public CommonResponse<OccupyDTO.Response> occupy(@PathVariable Long concertScheduleId,
 		@Valid @RequestBody OccupyDTO.Request request, @RequestParam Long userId) {
 		log.info("[ScheduleSeatController] occupy() 호출 - userId: {}, concertScheduleId: {}, scheduleSeatIds: {}",
 			userId, concertScheduleId, request.getScheduleSeatIds());
 		OccupyDTO.Result result = scheduleSeatService.occupy(request.toCommand(userId));
-		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
-	}
-
-	/**
-	 * 자신이 점유 중인 좌석 목록을 조회합니다.
-	 */
-	@GetMapping("/occupy")
-	public CommonResponse<FindOccupyDTO.Response> findOccupy(
-		@PathVariable Long concertScheduleId,
-		@RequestParam Long userId
-	) {
-		log.info("[ScheduleSeatController] findOccupy() 호출 - userId: {}, concertScheduleId: {}", userId, concertScheduleId);
-		FindOccupyDTO.Result result = scheduleSeatService.findMyOccupiedSeats(
-			FindOccupyDTO.Command.of(userId, concertScheduleId));
 		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
 	}
 
@@ -61,7 +47,7 @@ public class ScheduleSeatController {
 	 *     - OCCUPIED : 점유된 상태
 	 *     - SOLD : 팔린 상태
 	 */
-	@GetMapping
+	@GetMapping("/concert-schedules/{concertScheduleId}/schedule-seats")
 	public CommonResponse<FindAllDTO.Response> findAll(@PathVariable Long concertScheduleId,
 		@RequestParam Long userId, @RequestParam String token) {
 		log.info("[ScheduleSeatController] findAll() 호출 - userId: {}, concertScheduleId: {}", userId, concertScheduleId);
@@ -72,13 +58,24 @@ public class ScheduleSeatController {
 	/**
 	 * 특정 회차의 좌석 등급별 잔여 좌석 개수를 조회합니다.
 	 */
-	@GetMapping("/remaining")
+	@GetMapping("/concert-schedules/{concertScheduleId}/schedule-seats/remaining")
 	public CommonResponse<FindRemainingDTO.Response> findRemaining(
 		@PathVariable Long concertScheduleId,
 		@RequestParam Long userId
 	) {
 		log.info("[ScheduleSeatController] findRemaining() 호출 - userId: {}, concertScheduleId: {}", userId, concertScheduleId);
 		FindRemainingDTO.Result result = scheduleSeatService.findRemaining(FindRemainingDTO.Command.of(concertScheduleId));
+		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
+	}
+
+	/**
+	 * 사용자가 현재 점유 중인 좌석을 회차 구분 없이 모두 조회합니다.
+	 * 항목마다 어느 회차의 좌석인지와 점유 만료 시각이 함께 내려갑니다.
+	 */
+	@GetMapping("/users/occupy")
+	public CommonResponse<FindOccupyDTO.Response> findMyOccupiedSeats(@RequestParam Long userId) {
+		log.info("[ScheduleSeatController] findMyOccupiedSeats() 호출 - userId: {}", userId);
+		FindOccupyDTO.Result result = scheduleSeatService.findMyOccupiedSeats(FindOccupyDTO.Command.of(userId));
 		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
 	}
 }

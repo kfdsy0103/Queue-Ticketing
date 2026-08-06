@@ -97,11 +97,15 @@ public class ScheduleSeatService {
 			.map(ScheduleSeatRedisKeys::occupyKey)
 			.toList();
 
-		// 사용자별 조회용 역인덱스 Key
-		String userOccupyKey = ScheduleSeatRedisKeys.userOccupyKey(concertScheduleId, command.getUserId());
+		// 조회용 인덱스 Key (사용자별 / 회차별)
+		String userOccupyKey = ScheduleSeatRedisKeys.userOccupyKey(command.getUserId());
+		String scheduleOccupyKey = ScheduleSeatRedisKeys.scheduleOccupyKey(concertScheduleId);
 
 		// KEY 생성
-		List<String> keys = Stream.concat(occupyKeys.stream(), Stream.of(userOccupyKey)).toList();
+		List<String> keys = Stream.concat(
+			occupyKeys.stream(),
+			Stream.of(userOccupyKey, scheduleOccupyKey)
+		).toList();
 
 		// ARGV 생성
 		long now = System.currentTimeMillis();
@@ -158,20 +162,15 @@ public class ScheduleSeatService {
 				.build();
 		}
 
-		// occupy Key 목록을 한 번의 MGET으로 일괄 조회
-		List<String> occupyKeys = scheduleSeatEntities.stream()
-			.map(scheduleSeat -> ScheduleSeatRedisKeys.occupyKey(scheduleSeat.getId()))
-			.toList();
-		List<Object> occupyValues = redisUtil.multiGet(occupyKeys);
+		// 회차 인덱스에서 조회
+		Set<Long> occupiedSeatIds = findOccupiedSeatIdsInSchedule(command.getConcertScheduleId());
 
-		List<FindAllDTO.Result.ScheduleSeatInfo> scheduleSeats = IntStream.range(0, scheduleSeatEntities.size())
-			.mapToObj(i -> {
-				ScheduleSeat scheduleSeat = scheduleSeatEntities.get(i);
-
+		List<FindAllDTO.Result.ScheduleSeatInfo> scheduleSeats = scheduleSeatEntities.stream()
+			.map(scheduleSeat -> {
 				SeatDisplayStatus seatStatus;
 				if (scheduleSeat.getSeatStatus() == ScheduleSeat.SeatStatus.SOLD) {
 					seatStatus = SeatDisplayStatus.SOLD;
-				} else if (occupyValues.get(i) != null) {
+				} else if (occupiedSeatIds.contains(scheduleSeat.getId())) {
 					seatStatus = SeatDisplayStatus.OCCUPIED;
 				} else {
 					seatStatus = SeatDisplayStatus.AVAILABLE;
@@ -236,10 +235,7 @@ public class ScheduleSeatService {
 	public FindOccupyDTO.Result findMyOccupiedSeats(FindOccupyDTO.Command command) {
 
 		// 조회용 유저 인덱스 키 획득
-		String userOccupyKey = ScheduleSeatRedisKeys.userOccupyKey(
-			command.getConcertScheduleId(),
-			command.getUserId()
-		);
+		String userOccupyKey = ScheduleSeatRedisKeys.userOccupyKey(command.getUserId());
 
 		// 검색
 		Set<ZSetOperations.TypedTuple<Object>> occupiedTuples = redisUtil.zRangeWithScores(userOccupyKey);
@@ -267,29 +263,42 @@ public class ScheduleSeatService {
 
 		// 좌석 조회
 		List<ScheduleSeat> scheduleSeats =
-			scheduleSeatRepository.findAllByIdInWithSeatGrade(expireTimePerSeat.keySet());
+			scheduleSeatRepository.findAllByIdInWithScheduleAndSeatGrade(expireTimePerSeat.keySet());
 
-		// 좌석 등급별 가격 Mapping
-		Map<Long, Integer> priceBySeatGradeId = schedulePriceRepository
-			.findAllByConcertScheduleId(command.getConcertScheduleId()).stream()
+		// 회차, 등급 쌍으로 가격 Mapping
+		Set<Long> concertScheduleIds = scheduleSeats.stream()
+			.map(scheduleSeat -> scheduleSeat.getConcertSchedule().getId())
+			.collect(Collectors.toSet());
+
+		Map<FindOccupyDTO.SchedulePriceKey, Integer> priceByScheduleAndGrade = schedulePriceRepository.findAllByConcertScheduleIdIn(concertScheduleIds).stream()
 			.collect(Collectors.toMap(
-				schedulePrice -> schedulePrice.getSeatGrade().getId(),
+				schedulePrice -> new FindOccupyDTO.SchedulePriceKey(
+					schedulePrice.getConcertSchedule().getId(),
+					schedulePrice.getSeatGrade().getId()
+				),
 				SchedulePrice::getPrice
 			));
 
 		// 결과 DTO 생성
 		List<FindOccupyDTO.Item> items = scheduleSeats.stream()
 			.map(scheduleSeat -> {
-				Integer price = priceBySeatGradeId.get(scheduleSeat.getSeat().getSeatGrade().getId());
-				LocalDateTime expiresAt = expireTimePerSeat.get(scheduleSeat.getId());
+				Long concertScheduleId = scheduleSeat.getConcertSchedule().getId();
+				Integer price = priceByScheduleAndGrade.get(new FindOccupyDTO.SchedulePriceKey(
+					concertScheduleId,
+					scheduleSeat.getSeat().getSeatGrade().getId()
+				));
+				if (price == null) {
+					throw new GeneralException(SchedulePriceErrorCode.SCHEDULE_PRICE_NOT_FOUND);
+				}
 
 				return FindOccupyDTO.Item.builder()
+					.concertScheduleId(concertScheduleId)
 					.scheduleSeatId(scheduleSeat.getId())
 					.seatId(scheduleSeat.getSeat().getId())
 					.seatNumber(scheduleSeat.getSeat().getSeatNumber())
 					.seatGradeName(scheduleSeat.getSeat().getSeatGrade().getName())
 					.price(price)
-					.expiresAt(expiresAt)
+					.expiresAt(expireTimePerSeat.get(scheduleSeat.getId()))
 					.build();
 			})
 			.toList();
@@ -297,6 +306,23 @@ public class ScheduleSeatService {
 		return FindOccupyDTO.Result.builder()
 			.seats(items)
 			.build();
+	}
+
+	/**
+	 * 회차 인덱스에서 현재 점유 중인 좌석 ID를 조회합니다.
+	 */
+	private Set<Long> findOccupiedSeatIdsInSchedule(Long concertScheduleId) {
+		Set<Object> members = redisUtil.zRangeByScoreFrom(
+			ScheduleSeatRedisKeys.scheduleOccupyKey(concertScheduleId),
+			System.currentTimeMillis()	// from, 아직 만료되지 않은 것을 조회함
+		);
+		if (members == null || members.isEmpty()) {
+			return Set.of();
+		}
+
+		return members.stream()
+			.map(member -> Long.valueOf(member.toString()))
+			.collect(Collectors.toSet());
 	}
 
 	/**

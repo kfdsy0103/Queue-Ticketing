@@ -1,5 +1,6 @@
 package ticketing.domain.concert.scheduleprice.repository;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -12,4 +13,6 @@ public interface SchedulePriceRepository extends JpaRepository<SchedulePrice, Lo
 	Optional<SchedulePrice> findByConcertScheduleIdAndSeatGradeId(Long concertScheduleId, Long seatGradeId);
 
 	List<SchedulePrice> findAllByConcertScheduleId(Long concertScheduleId);
+
+	List<SchedulePrice> findAllByConcertScheduleIdIn(Collection<Long> concertScheduleIds);
 }
