@@ -144,14 +144,6 @@ public class OrderCommandService {
 		// Order에 달려있는 OrderItem 조회
 		List<OrderItem> orderItems = orderItemRepository.findAllByOrderIdWithScheduleSeat(orderId);
 
-		// 재점유를 막던 점유 Key 해제 (다른 사용자가 점유했다면 해제 X)
-		List<String> occupyKeys = orderItems.stream()
-			.map(orderItem -> ScheduleSeatRedisKeys.occupyKey(orderItem.getScheduleSeat().getId()))
-			.toList();
-		if (!occupyKeys.isEmpty()) {
-			redisUtil.execute(RELEASE_OCCUPY_SCRIPT, occupyKeys, order.getUser().getId().toString());
-		}
-
 		// orderItem 만료
 		orderItems.forEach(OrderItem::expire);
 
@@ -260,12 +252,6 @@ public class OrderCommandService {
 
 		// order 확정
 		order.complete();
-
-		// redis에서 좌석 점유 키 해제 (메모리)
-		List<String> occupyKeys = orderItems.stream()
-			.map(orderItem -> ScheduleSeatRedisKeys.occupyKey(orderItem.getScheduleSeat().getId()))
-			.toList();
-		redisUtil.execute(RELEASE_OCCUPY_SCRIPT, occupyKeys, command.getUserId().toString());
 
 		return ConfirmDTO.Result.builder()
 			.orderId(order.getId())

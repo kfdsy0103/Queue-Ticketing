@@ -2,14 +2,11 @@ package ticketing.domain.payment.service;
 
 import java.util.List;
 
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import ticketing.domain.concert.scheduleseat.constants.ScheduleSeatRedisKeys;
 import ticketing.domain.order.order.entity.Order;
 import ticketing.domain.order.order.exception.OrderErrorCode;
 import ticketing.domain.order.order.repository.OrderRepository;
@@ -23,7 +20,6 @@ import ticketing.domain.payment.entity.Payment;
 import ticketing.domain.payment.exception.PaymentErrorCode;
 import ticketing.domain.payment.repository.PaymentRepository;
 import ticketing.global.apiPayload.exception.GeneralException;
-import ticketing.global.util.RedisUtil;
 
 @Slf4j
 @Service
@@ -31,14 +27,10 @@ import ticketing.global.util.RedisUtil;
 @Transactional(readOnly = false)
 public class PaymentCommandService {
 
-	private static final RedisScript<Long> RELEASE_OCCUPY_SCRIPT =
-		RedisScript.of(new ClassPathResource("luaScripts/release-occupy.lua"), Long.class);
-
 	private final PaymentRepository paymentRepository;
 	private final OrderRepository orderRepository;
 	private final OrderItemRepository orderItemRepository;
 	private final KakaoPayApiClient kakaoPayApiClient;
-	private final RedisUtil redisUtil;
 
 	/**
 	 * PG ready() 성공 이후 발급받은 tid/redirectUrl로 Payment(READY)를 저장합니다.
@@ -157,14 +149,6 @@ public class PaymentCommandService {
 
 		// order 만료
 		order.expire();
-
-		// 주문이 종료되었으므로 재점유를 막던 점유 Key 해제 (다른 사용자가 점유했다면 해제 X)
-		List<String> occupyKeys = orderItems.stream()
-			.map(orderItem -> ScheduleSeatRedisKeys.occupyKey(orderItem.getScheduleSeat().getId()))
-			.toList();
-		if (!occupyKeys.isEmpty()) {
-			redisUtil.execute(RELEASE_OCCUPY_SCRIPT, occupyKeys, order.getUser().getId().toString());
-		}
 
 		log.info(
 			"[PaymentCommandService] - resolveStalePayment() 결제 건이 종료 처리되어 더 이상 완료될 수 없는 주문을 만료 처리했습니다. orderId={}",
