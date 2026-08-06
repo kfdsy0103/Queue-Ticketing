@@ -12,7 +12,6 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ticketing.domain.concert.scheduleseat.dto.FindAllDTO;
-import ticketing.domain.concert.scheduleseat.dto.FindDTO;
 import ticketing.domain.concert.scheduleseat.dto.FindOccupyDTO;
 import ticketing.domain.concert.scheduleseat.dto.OccupyDTO;
 import ticketing.domain.concert.scheduleseat.service.ScheduleSeatService;
@@ -54,15 +53,13 @@ public class ScheduleSeatController {
 		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
 	}
 
-	@GetMapping("/{scheduleSeatId}")
-	public CommonResponse<FindDTO.Response> find(@PathVariable Long concertScheduleId,
-		@PathVariable Long scheduleSeatId, @RequestParam Long userId, @RequestParam String token) {
-		log.info("[ScheduleSeatController] find() 호출 - userId: {}, concertScheduleId: {}, scheduleSeatId: {}",
-			userId, concertScheduleId, scheduleSeatId);
-		FindDTO.Result result = scheduleSeatService.find(FindDTO.Command.of(scheduleSeatId, userId, token));
-		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
-	}
-
+	/**
+	 * 특정 회차에 대한 좌석 정보를 모두 조회합니다.
+	 * 좌석의 상태는 다음 3가지로 분류되고, 이 중 AVAILABLE만 예약 가능합니다.
+	 *     - AVAILABLE : 점유되거나 판매되지 않음
+	 *     - OCCUPIED : 점유된 상태
+	 *     - SOLD : 팔린 상태
+	 */
 	@GetMapping
 	public CommonResponse<FindAllDTO.Response> findAll(@PathVariable Long concertScheduleId,
 		@RequestParam Long userId, @RequestParam String token) {

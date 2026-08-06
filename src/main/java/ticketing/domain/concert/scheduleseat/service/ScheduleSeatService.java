@@ -16,7 +16,6 @@ import ticketing.domain.concert.scheduleprice.exception.SchedulePriceErrorCode;
 import ticketing.domain.concert.scheduleprice.repository.SchedulePriceRepository;
 import ticketing.domain.concert.scheduleseat.constants.ScheduleSeatRedisKeys;
 import ticketing.domain.concert.scheduleseat.dto.FindAllDTO;
-import ticketing.domain.concert.scheduleseat.dto.FindDTO;
 import ticketing.domain.concert.scheduleseat.dto.FindOccupyDTO;
 import ticketing.domain.concert.scheduleseat.dto.OccupyDTO;
 import ticketing.domain.concert.scheduleseat.entity.ScheduleSeat;
@@ -104,44 +103,13 @@ public class ScheduleSeatService {
 			.build();
 	}
 
-	public FindDTO.Result find(FindDTO.Command command) {
-		ScheduleSeat scheduleSeat = scheduleSeatRepository.findById(command.getScheduleSeatId())
-			.orElseThrow(() -> new GeneralException(ScheduleSeatErrorCode.SCHEDULE_SEAT_NOT_FOUND));
-
-		// 토큰에 기록된 userId와 요청자 userId 일치 검사
-		Long tokenUserId = jwtTokenUtil.getClaim(command.getToken(), "userId", Long.class);
-		if (!command.getUserId().equals(tokenUserId)) {
-			throw new GeneralException(GeneralErrorCode.FORBIDDEN);
-		}
-
-		// 유저가 해당 회차의 대기열을 통과(Active)했고, 최신 화면(sessionId)의 요청인지 확인
-		Long concertScheduleId = scheduleSeat.getConcertSchedule().getId();
-		String storedSessionId = redisUtil.get(QueueRedisKeys.activeKey(concertScheduleId, command.getUserId()));
-		if (storedSessionId == null) {
-			throw new GeneralException(QueueErrorCode.NOT_ACTIVE);
-		}
-		String queueSessionId = jwtTokenUtil.getClaim(command.getToken(), "queueSessionId", String.class);
-		if (!queueSessionId.equals(storedSessionId)) {
-			throw new GeneralException(QueueErrorCode.SESSION_REVOKED);	// 다른 화면에서 예매를 이어받은 경우 (이 화면은 종료)
-		}
-
-		SeatDisplayStatus seatStatus;
-		if (scheduleSeat.getSeatStatus() == ScheduleSeat.SeatStatus.SOLD) {
-			seatStatus = SeatDisplayStatus.SOLD;
-		} else if (redisUtil.hasKey(ScheduleSeatRedisKeys.occupyKey(scheduleSeat.getId()))) {
-			seatStatus = SeatDisplayStatus.OCCUPIED;
-		} else {
-			seatStatus = SeatDisplayStatus.AVAILABLE;
-		}
-
-		return FindDTO.Result.builder()
-			.scheduleSeatId(scheduleSeat.getId())
-			.concertScheduleId(scheduleSeat.getConcertSchedule().getId())
-			.seatId(scheduleSeat.getSeat().getId())
-			.seatStatus(seatStatus)
-			.build();
-	}
-
+	/**
+	 * 특정 회차에 대한 좌석 정보를 모두 조회합니다.
+	 * 좌석의 상태는 다음 3가지로 분류되고, 이 중 AVAILABLE만 예약 가능합니다.
+	 *     - AVAILABLE : 점유되거나 판매되지 않음
+	 *     - OCCUPIED : 점유된 상태
+	 *     - SOLD : 팔린 상태
+	 */
 	public FindAllDTO.Result findAll(FindAllDTO.Command command) {
 
 		// 토큰에 기록된 userId와 요청자 userId 일치 검사
@@ -173,7 +141,7 @@ public class ScheduleSeatService {
 			.toList();
 		List<Object> occupyValues = redisUtil.multiGet(occupyKeys);
 
-		List<FindDTO.Result> scheduleSeats = IntStream.range(0, scheduleSeatEntities.size())
+		List<FindAllDTO.Result.ScheduleSeatInfo> scheduleSeats = IntStream.range(0, scheduleSeatEntities.size())
 			.mapToObj(i -> {
 				ScheduleSeat scheduleSeat = scheduleSeatEntities.get(i);
 
@@ -186,12 +154,7 @@ public class ScheduleSeatService {
 					seatStatus = SeatDisplayStatus.AVAILABLE;
 				}
 
-				return FindDTO.Result.builder()
-					.scheduleSeatId(scheduleSeat.getId())
-					.concertScheduleId(scheduleSeat.getConcertSchedule().getId())
-					.seatId(scheduleSeat.getSeat().getId())
-					.seatStatus(seatStatus)
-					.build();
+				return FindAllDTO.Result.ScheduleSeatInfo.of(scheduleSeat, seatStatus);
 			})
 			.toList();
 
