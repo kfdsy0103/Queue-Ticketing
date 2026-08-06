@@ -42,6 +42,13 @@ public class OccupyDTO {
 		List<Long> scheduleSeatIds;
 		LocalDateTime expiresAt;
 
+		public static Result of(List<Long> scheduleSeatIds, LocalDateTime expiresAt) {
+			return Result.builder()
+				.scheduleSeatIds(scheduleSeatIds)
+				.expiresAt(expiresAt)
+				.build();
+		}
+
 		public Response toResponse() {
 			return Response.builder()
 				.scheduleSeatIds(scheduleSeatIds)

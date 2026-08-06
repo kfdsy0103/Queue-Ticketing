@@ -1,5 +1,6 @@
 package ticketing.domain.concert.scheduleseat.dto;
 
+import java.util.Collections;
 import java.util.List;
 
 import lombok.Builder;
@@ -29,6 +30,16 @@ public class FindAllDTO {
 	@Builder
 	public static class Result {
 		List<ScheduleSeatInfo> scheduleSeats;
+
+		public static Result of(List<ScheduleSeatInfo> scheduleSeats) {
+			return Result.builder()
+				.scheduleSeats(scheduleSeats)
+				.build();
+		}
+
+		public static Result empty() {
+			return Result.of(Collections.emptyList());
+		}
 
 		@Getter
 		@Builder

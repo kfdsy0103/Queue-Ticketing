@@ -25,6 +25,12 @@ public class FindRemainingDTO {
 	public static class Result {
 		List<SeatGradeRemaining> seatGrades;
 
+		public static Result of(List<SeatGradeRemaining> seatGrades) {
+			return Result.builder()
+				.seatGrades(seatGrades)
+				.build();
+		}
+
 		@Getter
 		@Builder
 		public static class SeatGradeRemaining {

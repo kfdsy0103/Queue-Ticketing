@@ -1,14 +1,16 @@
 package ticketing.domain.concert.scheduleseat.dto;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.EqualsAndHashCode;
 import lombok.Getter;
+import ticketing.domain.concert.scheduleseat.entity.ScheduleSeat;
 
-public class FindOccupyDTO {
+public class FindMyOccupyDTO {
 
 	@Getter
 	@Builder
@@ -32,12 +34,34 @@ public class FindOccupyDTO {
 		String seatGradeName;
 		int price;
 		LocalDateTime expiresAt;
+
+		public static Item of(ScheduleSeat scheduleSeat, int price, LocalDateTime expiresAt) {
+			return Item.builder()
+				.concertScheduleId(scheduleSeat.getConcertSchedule().getId())
+				.scheduleSeatId(scheduleSeat.getId())
+				.seatId(scheduleSeat.getSeat().getId())
+				.seatNumber(scheduleSeat.getSeat().getSeatNumber())
+				.seatGradeName(scheduleSeat.getSeat().getSeatGrade().getName())
+				.price(price)
+				.expiresAt(expiresAt)
+				.build();
+		}
 	}
 
 	@Getter
 	@Builder
 	public static class Result {
 		List<Item> seats;
+
+		public static Result of(List<Item> seats) {
+			return Result.builder()
+				.seats(seats)
+				.build();
+		}
+
+		public static Result empty() {
+			return Result.of(Collections.emptyList());
+		}
 
 		public Response toResponse() {
 			return Response.builder()
@@ -52,14 +76,15 @@ public class FindOccupyDTO {
 		List<Item> seats;
 	}
 
-	/**
-	 * 회차·등급 쌍으로 가격을 찾기 위한 복합 키입니다.
-	 */
 	@Getter
 	@EqualsAndHashCode
 	@AllArgsConstructor
 	public static class SchedulePriceKey {
 		Long concertScheduleId;
 		Long seatGradeId;
+
+		public static SchedulePriceKey of(Long concertScheduleId, Long seatGradeId) {
+			return new SchedulePriceKey(concertScheduleId, seatGradeId);
+		}
 	}
 }

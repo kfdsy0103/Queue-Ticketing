@@ -12,7 +12,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ticketing.domain.concert.scheduleseat.dto.FindAllDTO;
-import ticketing.domain.concert.scheduleseat.dto.FindOccupyDTO;
+import ticketing.domain.concert.scheduleseat.dto.FindMyOccupyDTO;
 import ticketing.domain.concert.scheduleseat.dto.FindRemainingDTO;
 import ticketing.domain.concert.scheduleseat.dto.OccupyDTO;
 import ticketing.domain.concert.scheduleseat.service.ScheduleSeatService;
@@ -73,9 +73,9 @@ public class ScheduleSeatController {
 	 * 항목마다 어느 회차의 좌석인지와 점유 만료 시각이 함께 내려갑니다.
 	 */
 	@GetMapping("/users/occupy")
-	public CommonResponse<FindOccupyDTO.Response> findMyOccupiedSeats(@RequestParam Long userId) {
-		log.info("[ScheduleSeatController] findMyOccupiedSeats() 호출 - userId: {}", userId);
-		FindOccupyDTO.Result result = scheduleSeatService.findMyOccupiedSeats(FindOccupyDTO.Command.of(userId));
+	public CommonResponse<FindMyOccupyDTO.Response> findMyOccupy(@RequestParam Long userId) {
+		log.info("[ScheduleSeatController] findMyOccupy() 호출 - userId: {}", userId);
+		FindMyOccupyDTO.Result result = scheduleSeatService.findMyOccupy(FindMyOccupyDTO.Command.of(userId));
 		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
 	}
 }

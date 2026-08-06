@@ -25,7 +25,7 @@ import ticketing.domain.concert.scheduleprice.exception.SchedulePriceErrorCode;
 import ticketing.domain.concert.scheduleprice.repository.SchedulePriceRepository;
 import ticketing.domain.concert.scheduleseat.constants.ScheduleSeatRedisKeys;
 import ticketing.domain.concert.scheduleseat.dto.FindAllDTO;
-import ticketing.domain.concert.scheduleseat.dto.FindOccupyDTO;
+import ticketing.domain.concert.scheduleseat.dto.FindMyOccupyDTO;
 import ticketing.domain.concert.scheduleseat.dto.FindRemainingDTO;
 import ticketing.domain.concert.scheduleseat.dto.OccupyDTO;
 import ticketing.domain.concert.scheduleseat.entity.ScheduleSeat;
@@ -123,10 +123,7 @@ public class ScheduleSeatService {
 			throw new GeneralException(ScheduleSeatErrorCode.ALREADY_OCCUPIED);
 		}
 
-		return OccupyDTO.Result.builder()
-			.scheduleSeatIds(command.getScheduleSeatIds())
-			.expiresAt(toLocalDateTime(expiresAtMillis))
-			.build();
+		return OccupyDTO.Result.of(command.getScheduleSeatIds(), toLocalDateTime(expiresAtMillis));
 	}
 
 	/**
@@ -156,9 +153,7 @@ public class ScheduleSeatService {
 
 		List<ScheduleSeat> scheduleSeatEntities = scheduleSeatRepository.findAllByConcertScheduleId(command.getConcertScheduleId());
 		if (scheduleSeatEntities.isEmpty()) {
-			return FindAllDTO.Result.builder()
-				.scheduleSeats(List.of())
-				.build();
+			return FindAllDTO.Result.empty();
 		}
 
 		// 회차 인덱스에서 조회
@@ -179,9 +174,7 @@ public class ScheduleSeatService {
 			})
 			.toList();
 
-		return FindAllDTO.Result.builder()
-			.scheduleSeats(scheduleSeats)
-			.build();
+		return FindAllDTO.Result.of(scheduleSeats);
 	}
 
 	/**
@@ -221,9 +214,7 @@ public class ScheduleSeatService {
 			)
 			.toList();
 
-		return FindRemainingDTO.Result.builder()
-			.seatGrades(seatGrades)
-			.build();
+		return FindRemainingDTO.Result.of(seatGrades);
 	}
 
 	/**
@@ -231,7 +222,7 @@ public class ScheduleSeatService {
 	 * 	- Redis에서 사용자별 조회용 인덱스를 기반으로 조회하여 남은 시간도 함께 반환.
 	 * 	- ZSET의 Score를 만료 시간으로 설정하여, 남은 시간을 바로 확인하도록
 	 */
-	public FindOccupyDTO.Result findMyOccupiedSeats(FindOccupyDTO.Command command) {
+	public FindMyOccupyDTO.Result findMyOccupy(FindMyOccupyDTO.Command command) {
 
 		// 조회용 유저 인덱스 키 획득
 		String userOccupyKey = ScheduleSeatRedisKeys.userOccupyKey(command.getUserId());
@@ -239,7 +230,7 @@ public class ScheduleSeatService {
 		// 검색
 		Set<ZSetOperations.TypedTuple<Object>> occupiedTuples = redisUtil.zRangeWithScores(userOccupyKey);
 		if (occupiedTuples == null || occupiedTuples.isEmpty()) {
-			return FindOccupyDTO.Result.builder().seats(List.of()).build();
+			return FindMyOccupyDTO.Result.empty();
 		}
 
 		long now = System.currentTimeMillis();
@@ -257,7 +248,7 @@ public class ScheduleSeatService {
 		}
 
 		if (expireTimePerSeat.isEmpty()) {
-			return FindOccupyDTO.Result.builder().seats(List.of()).build();
+			return FindMyOccupyDTO.Result.empty();
 		}
 
 		// 좌석 조회
@@ -269,9 +260,9 @@ public class ScheduleSeatService {
 			.map(scheduleSeat -> scheduleSeat.getConcertSchedule().getId())
 			.collect(Collectors.toSet());
 
-		Map<FindOccupyDTO.SchedulePriceKey, Integer> priceByScheduleAndGrade = schedulePriceRepository.findAllByConcertScheduleIdIn(concertScheduleIds).stream()
+		Map<FindMyOccupyDTO.SchedulePriceKey, Integer> priceByScheduleAndGrade = schedulePriceRepository.findAllByConcertScheduleIdIn(concertScheduleIds).stream()
 			.collect(Collectors.toMap(
-				schedulePrice -> new FindOccupyDTO.SchedulePriceKey(
+				schedulePrice -> FindMyOccupyDTO.SchedulePriceKey.of(
 					schedulePrice.getConcertSchedule().getId(),
 					schedulePrice.getSeatGrade().getId()
 				),
@@ -279,32 +270,21 @@ public class ScheduleSeatService {
 			));
 
 		// 결과 DTO 생성
-		List<FindOccupyDTO.Item> items = scheduleSeats.stream()
+		List<FindMyOccupyDTO.Item> items = scheduleSeats.stream()
 			.map(scheduleSeat -> {
-				Long concertScheduleId = scheduleSeat.getConcertSchedule().getId();
-				Integer price = priceByScheduleAndGrade.get(new FindOccupyDTO.SchedulePriceKey(
-					concertScheduleId,
+				Integer price = priceByScheduleAndGrade.get(FindMyOccupyDTO.SchedulePriceKey.of(
+					scheduleSeat.getConcertSchedule().getId(),
 					scheduleSeat.getSeat().getSeatGrade().getId()
 				));
 				if (price == null) {
 					throw new GeneralException(SchedulePriceErrorCode.SCHEDULE_PRICE_NOT_FOUND);
 				}
 
-				return FindOccupyDTO.Item.builder()
-					.concertScheduleId(concertScheduleId)
-					.scheduleSeatId(scheduleSeat.getId())
-					.seatId(scheduleSeat.getSeat().getId())
-					.seatNumber(scheduleSeat.getSeat().getSeatNumber())
-					.seatGradeName(scheduleSeat.getSeat().getSeatGrade().getName())
-					.price(price)
-					.expiresAt(expireTimePerSeat.get(scheduleSeat.getId()))
-					.build();
+				return FindMyOccupyDTO.Item.of(scheduleSeat, price, expireTimePerSeat.get(scheduleSeat.getId()));
 			})
 			.toList();
 
-		return FindOccupyDTO.Result.builder()
-			.seats(items)
-			.build();
+		return FindMyOccupyDTO.Result.of(items);
 	}
 
 	/**
