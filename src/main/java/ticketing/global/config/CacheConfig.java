@@ -51,6 +51,7 @@ public class CacheConfig {
 			));
 
 		return RedisCacheManager.builder(connectionFactory)
+			.transactionAware()	// 캐시 관련 처리는 @Transaction 내부 X -> afterCommit 시점에 일어나도록 함
 			.cacheDefaults(defaultConfig)
 			.withInitialCacheConfigurations(customConfig)
 			.build();
