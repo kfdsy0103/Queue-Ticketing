@@ -113,10 +113,8 @@ public class ConcertService {
 	}
 
 	public FindAllDTO.Result findAll() {
-		return FindAllDTO.Result.builder()
-			.concerts(concertRepository.findAll().stream()
-				.map(FindAllDTO.Result.ConcertInfo::from)
-				.toList())
-			.build();
+		return FindAllDTO.Result.of(concertRepository.findAll().stream()
+			.map(FindAllDTO.ConcertInfo::from)
+			.toList());
 	}
 }

@@ -28,10 +28,8 @@ public class ConcertScheduleQueryService {
 	}
 
 	public FindAllDTO.Result findAll(FindAllDTO.Command command) {
-		return FindAllDTO.Result.builder()
-			.concertSchedules(concertScheduleRepository.findAllByConcertId(command.getConcertId()).stream()
-				.map(FindAllDTO.Result.ConcertScheduleInfo::from)
-				.toList())
-			.build();
+		return FindAllDTO.Result.of(concertScheduleRepository.findAllByConcertId(command.getConcertId()).stream()
+			.map(FindAllDTO.ConcertScheduleInfo::from)
+			.toList());
 	}
 }

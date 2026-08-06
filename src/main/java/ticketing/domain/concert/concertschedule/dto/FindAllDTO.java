@@ -27,22 +27,10 @@ public class FindAllDTO {
 	public static class Result {
 		List<ConcertScheduleInfo> concertSchedules;
 
-		@Getter
-		@Builder
-		public static class ConcertScheduleInfo {
-			Long concertScheduleId;
-			Long concertId;
-			LocalDate performanceDate;
-			LocalDateTime ticketOpenAt;
-
-			public static ConcertScheduleInfo from(ConcertSchedule concertSchedule) {
-				return ConcertScheduleInfo.builder()
-					.concertScheduleId(concertSchedule.getId())
-					.concertId(concertSchedule.getConcert().getId())
-					.performanceDate(concertSchedule.getPerformanceDate())
-					.ticketOpenAt(concertSchedule.getTicketOpenAt())
-					.build();
-			}
+		public static Result of(List<ConcertScheduleInfo> concertSchedules) {
+			return Result.builder()
+				.concertSchedules(concertSchedules)
+				.build();
 		}
 
 		public Response toResponse() {
@@ -54,7 +42,25 @@ public class FindAllDTO {
 
 	@Getter
 	@Builder
+	public static class ConcertScheduleInfo {
+		Long concertScheduleId;
+		Long concertId;
+		LocalDate performanceDate;
+		LocalDateTime ticketOpenAt;
+
+		public static ConcertScheduleInfo from(ConcertSchedule concertSchedule) {
+			return ConcertScheduleInfo.builder()
+				.concertScheduleId(concertSchedule.getId())
+				.concertId(concertSchedule.getConcert().getId())
+				.performanceDate(concertSchedule.getPerformanceDate())
+				.ticketOpenAt(concertSchedule.getTicketOpenAt())
+				.build();
+		}
+	}
+
+	@Getter
+	@Builder
 	public static class Response {
-		List<Result.ConcertScheduleInfo> concertSchedules;
+		List<ConcertScheduleInfo> concertSchedules;
 	}
 }
