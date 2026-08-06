@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import org.springframework.cache.annotation.Cacheable;
@@ -198,8 +197,8 @@ public class ScheduleSeatService {
 				ScheduleSeat.SeatStatus.AVAILABLE
 			);
 
-		// Redis에 점유 중인 좌석 조회
-		Set<Long> occupiedSeatIds = findOccupiedSeatIds(scheduleSeatGrades);
+		// 회차 인덱스에서 조회
+		Set<Long> occupiedSeatIds = findOccupiedSeatIdsInSchedule(command.getConcertScheduleId());
 
 		// 좌석 등급 별로 Map으로 정리
 		Map<Long, List<ScheduleSeatGradeProjection>> seatsPerGrade = scheduleSeatGrades.stream()
@@ -309,7 +308,7 @@ public class ScheduleSeatService {
 	}
 
 	/**
-	 * 회차 인덱스에서 현재 점유 중인 좌석 ID를 조회합니다.
+	 * 회차 인덱스에서 현재 점유 중인 좌석 ID 목록을 조회합니다.
 	 */
 	private Set<Long> findOccupiedSeatIdsInSchedule(Long concertScheduleId) {
 		Set<Object> members = redisUtil.zRangeByScoreFrom(
@@ -322,31 +321,6 @@ public class ScheduleSeatService {
 
 		return members.stream()
 			.map(member -> Long.valueOf(member.toString()))
-			.collect(Collectors.toSet());
-	}
-
-	/**
-	 * Redis에 선점 상태인 좌석 목록을 한번에 MGET 조회합니다.
-	 */
-	private Set<Long> findOccupiedSeatIds(List<ScheduleSeatGradeProjection> scheduleSeatGrades) {
-
-		List<Long> availableSeatIds = scheduleSeatGrades.stream()
-			.map(ScheduleSeatGradeProjection::getScheduleSeatId)
-			.toList();
-
-		if (availableSeatIds.isEmpty()) {
-			return Set.of();
-		}
-
-		// occupyKey 만들기
-		List<String> occupyKeys = availableSeatIds.stream()
-			.map(ScheduleSeatRedisKeys::occupyKey)
-			.toList();
-		List<Object> occupyValues = redisUtil.multiGet(occupyKeys);
-
-		return IntStream.range(0, availableSeatIds.size())
-			.filter(i -> occupyValues.get(i) != null)
-			.mapToObj(availableSeatIds::get)
 			.collect(Collectors.toSet());
 	}
 

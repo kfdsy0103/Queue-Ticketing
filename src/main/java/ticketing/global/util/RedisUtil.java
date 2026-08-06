@@ -97,13 +97,6 @@ public class RedisUtil {
 	}
 
 	/**
-	 * 여러 Key의 값을 한 번의 요청으로 조회합니다. (MGET)
-	 */
-	public List<Object> multiGet(List<String> keys) {
-		return redisTemplate.opsForValue().multiGet(keys);
-	}
-
-	/**
 	 * Sorted Set에서 score와 함께 조회합니다. (ZRANGE 0 -1 WITHSCORES)
 	 */
 	public Set<ZSetOperations.TypedTuple<Object>> zRangeWithScores(String key) {
