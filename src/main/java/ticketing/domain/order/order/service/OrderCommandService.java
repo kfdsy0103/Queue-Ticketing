@@ -44,8 +44,6 @@ public class OrderCommandService {
 
 	private static final RedisScript<Long> VERIFY_OCCUPY_SCRIPT =
 		RedisScript.of(new ClassPathResource("luaScripts/verify-occupy.lua"), Long.class);
-	private static final RedisScript<Long> RELEASE_OCCUPY_SCRIPT =
-		RedisScript.of(new ClassPathResource("luaScripts/release-occupy.lua"), Long.class);
 
 	private final OrderRepository orderRepository;
 	private final UserRepository userRepository;
