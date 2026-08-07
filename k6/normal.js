@@ -91,7 +91,9 @@ const SURF_TARGETS = [
   { name: 'GET /concerts', url: (userId) => `${BASE_URL}/api/v1/concerts?userId=${userId}` },
   { name: 'GET /concerts/{id}', url: (userId) => `${BASE_URL}/api/v1/concerts/${CONCERT_ID}?userId=${userId}` },
   { name: 'GET /concerts/{id}/concert-schedules', url: (userId) => `${BASE_URL}/api/v1/concerts/${CONCERT_ID}/concert-schedules?userId=${userId}` },
-  { name: 'GET /concert-schedules/{id}/schedule-prices', url: (userId) => `${BASE_URL}/api/v1/concert-schedules/${CONCERT_SCHEDULE_ID}/schedule-prices?userId=${userId}` },
+  { name: 'GET /concerts/{id}/concert-schedules/{id}', url: (userId) => `${BASE_URL}/api/v1/concerts/${CONCERT_ID}/concert-schedules/${CONCERT_SCHEDULE_ID}?userId=${userId}` },
+  { name: 'GET /concert-schedules/{id}/schedule-seats/remaining', url: (userId) => `${BASE_URL}/api/v1/concert-schedules/${CONCERT_SCHEDULE_ID}/schedule-seats/remaining?userId=${userId}` },
+  { name: 'GET /users/occupy', url: (userId) => `${BASE_URL}/api/v1/users/occupy?userId=${userId}` },
 ];
 
 // 시나리오: VU의 10%는 구매 퍼널, 90%는 서핑
