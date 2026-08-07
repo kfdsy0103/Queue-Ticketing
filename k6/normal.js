@@ -57,12 +57,21 @@ const SEAT_COUNT = Number(__ENV.SEAT_COUNT || '3000');
 
 const ALREADY_JOINED_STATUS = 409;   // 이미 참여/Active 중 -> takeover로 전환
 
+// 주문 사용자가 호출하는 엔드포인트 Trend
 const enterDuration = new Trend('enter_duration', true);      // 대기열 진입
 const statusDuration = new Trend('status_duration', true);    // 대기열 상태 조회
 const seatsDuration = new Trend('seats_duration', true);      // 전체 좌석 조회
 const occupyDuration = new Trend('occupy_duration', true);    // 좌석 점유 시도
 const orderDuration = new Trend('order_duration', true);      // 주문 생성
 const confirmDuration = new Trend('confirm_duration', true);  // 주문 확정
+
+// 서핑 사용자가 호출하는 엔드포인트 Trend
+const concertsDuration = new Trend('concerts_duration', true);                  // GET /concerts
+const concertDuration = new Trend('concert_duration', true);                    // GET /concerts/{id}
+const concertSchedulesDuration = new Trend('concert_schedules_duration', true); // GET /concerts/{id}/concert-schedules
+const concertScheduleDuration = new Trend('concert_schedule_duration', true);   // GET /concerts/{id}/concert-schedules/{id}
+const remainingSeatsDuration = new Trend('remaining_seats_duration', true);     // GET /concert-schedules/{id}/schedule-seats/remaining
+const myOccupyDuration = new Trend('my_occupy_duration', true);                 // GET /users/occupy
 
 const errorCount = new Counter('error_count');
 
@@ -88,12 +97,12 @@ function pickRandomSeatIds() {
 
 // 서핑 사용자가 호출하는 조회 엔드포인트
 const SURF_TARGETS = [
-  { name: 'GET /concerts', url: (userId) => `${BASE_URL}/api/v1/concerts?userId=${userId}` },
-  { name: 'GET /concerts/{id}', url: (userId) => `${BASE_URL}/api/v1/concerts/${CONCERT_ID}?userId=${userId}` },
-  { name: 'GET /concerts/{id}/concert-schedules', url: (userId) => `${BASE_URL}/api/v1/concerts/${CONCERT_ID}/concert-schedules?userId=${userId}` },
-  { name: 'GET /concerts/{id}/concert-schedules/{id}', url: (userId) => `${BASE_URL}/api/v1/concerts/${CONCERT_ID}/concert-schedules/${CONCERT_SCHEDULE_ID}?userId=${userId}` },
-  { name: 'GET /concert-schedules/{id}/schedule-seats/remaining', url: (userId) => `${BASE_URL}/api/v1/concert-schedules/${CONCERT_SCHEDULE_ID}/schedule-seats/remaining?userId=${userId}` },
-  { name: 'GET /users/occupy', url: (userId) => `${BASE_URL}/api/v1/users/occupy?userId=${userId}` },
+  { name: 'GET /concerts', trend: concertsDuration, url: (userId) => `${BASE_URL}/api/v1/concerts?userId=${userId}` },
+  { name: 'GET /concerts/{id}', trend: concertDuration, url: (userId) => `${BASE_URL}/api/v1/concerts/${CONCERT_ID}?userId=${userId}` },
+  { name: 'GET /concerts/{id}/concert-schedules', trend: concertSchedulesDuration, url: (userId) => `${BASE_URL}/api/v1/concerts/${CONCERT_ID}/concert-schedules?userId=${userId}` },
+  { name: 'GET /concerts/{id}/concert-schedules/{id}', trend: concertScheduleDuration, url: (userId) => `${BASE_URL}/api/v1/concerts/${CONCERT_ID}/concert-schedules/${CONCERT_SCHEDULE_ID}?userId=${userId}` },
+  { name: 'GET /concert-schedules/{id}/schedule-seats/remaining', trend: remainingSeatsDuration, url: (userId) => `${BASE_URL}/api/v1/concert-schedules/${CONCERT_SCHEDULE_ID}/schedule-seats/remaining?userId=${userId}` },
+  { name: 'GET /users/occupy', trend: myOccupyDuration, url: (userId) => `${BASE_URL}/api/v1/users/occupy?userId=${userId}` },
 ];
 
 // 시나리오: VU의 10%는 구매 퍼널, 90%는 서핑
@@ -111,6 +120,7 @@ function surfing() {
   const target = SURF_TARGETS[Math.floor(Math.random() * SURF_TARGETS.length)];
 
   const res = http.get(target.url(userId), { tags: { name: target.name } });
+  target.trend.add(res.timings.duration);
 
   if (!check(res, { 'surf 200': (r) => r.status === 200 })) {
     errorCount.add(1);
