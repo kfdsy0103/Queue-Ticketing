@@ -67,20 +67,6 @@ services:
       - monitoring
     restart: unless-stopped
 
-  # RDS(MySQL) Exporter - Slave 2
-  mysqld-exporter-slave-2:
-    image: prom/mysqld-exporter:latest
-    container_name: mysqld-exporter-slave-2
-    environment:
-      TZ: "Asia/Seoul"
-      MYSQLD_EXPORTER_PASSWORD: "${RDS_EXPORTER_PASSWORD}"
-    command:
-      - "--mysqld.username=${RDS_EXPORTER_USERNAME}"
-      - "--mysqld.address=${RDS_SLAVE2_EXPORTER_ADDRESS}"
-    networks:
-      - monitoring
-    restart: unless-stopped
-
   # Redis Exporter
   redis-exporter:
     image: oliver006/redis_exporter:latest
@@ -89,6 +75,22 @@ services:
       TZ: "Asia/Seoul"
       REDIS_ADDR: "${REDIS_EXPORTER_ADDR}"
       REDIS_PASSWORD: "${REDIS_EXPORTER_PASSWORD:-}"
+    networks:
+      - monitoring
+    restart: unless-stopped
+
+  # YACE (CloudWatch Exporter) - RDS/ElastiCache CPU, Memory 지표
+  yace:
+    image: quay.io/prometheuscommunity/yet-another-cloudwatch-exporter:latest
+    container_name: yace
+    environment:
+      TZ: "Asia/Seoul"
+    ports:
+      - "5000:5000"
+    volumes:
+      - ./yace/config.yml:/tmp/config.yml:ro
+    command:
+      - "--config.file=/tmp/config.yml"
     networks:
       - monitoring
     restart: unless-stopped

@@ -1,0 +1,18 @@
+# RDS/ElastiCache의 CloudWatch 지표(CPU, Memory)를 Prometheus에서 스크래핑 할 수 있도록.
+apiVersion: v1alpha1
+
+sts-region: ap-northeast-2
+
+discovery:
+  jobs:
+    # RDS - CPU / Memory
+    - type: AWS/RDS
+      regions:
+        - ap-northeast-2
+      period: 60
+      length: 60
+      metrics:
+        - name: CPUUtilization
+          statistics: [Average]
+        - name: FreeableMemory
+          statistics: [Average]

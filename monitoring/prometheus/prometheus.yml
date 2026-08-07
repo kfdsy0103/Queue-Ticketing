@@ -57,3 +57,7 @@ scrape_configs:
   - job_name: "redis_exporter"
     static_configs:
       - targets: ["redis-exporter:9121"]
+
+  - job_name: "yace_cloudwatch"
+    static_configs:
+      - targets: ["yace:5000"]
