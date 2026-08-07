@@ -10,6 +10,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.cache.RedisCacheConfiguration;
 import org.springframework.data.redis.cache.RedisCacheManager;
+import org.springframework.data.redis.cache.RedisCacheWriter;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.RedisSerializationContext;
@@ -25,6 +26,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import lombok.RequiredArgsConstructor;
 import ticketing.global.enums.CacheGroup;
 import ticketing.global.enums.CacheType;
+import ticketing.global.util.JitterUtil;
 
 @EnableCaching
 @Configuration
@@ -47,7 +49,7 @@ public class CacheConfig {
 			.filter(group -> group.getCacheType() == CacheType.GLOBAL)
 			.collect(Collectors.toMap(
 				CacheGroup::getCacheName,
-				group -> defaultConfig.entryTtl(group.getExpiredAfterWrite()) // 위에서 설정한 Default + TTL만 덮어쓰기
+				group -> defaultConfig.entryTtl(JitteredTtlFunction.of(group.getExpiredAfterWrite())) // 지터 적용 TTL
 			));
 
 		return RedisCacheManager.builder(connectionFactory)
@@ -67,5 +69,23 @@ public class CacheConfig {
 			.disable(SerializationFeature.INDENT_OUTPUT)
 			.activateDefaultTyping(typeValidator, ObjectMapper.DefaultTyping.NON_FINAL)
 			.build();
+	}
+
+	private static class JitteredTtlFunction implements RedisCacheWriter.TtlFunction {
+
+		private final Duration baseTtl;
+
+		private JitteredTtlFunction(Duration baseTtl) {
+			this.baseTtl = baseTtl;
+		}
+
+		public static JitteredTtlFunction of(Duration baseTtl) {
+			return new JitteredTtlFunction(baseTtl);
+		}
+
+		@Override
+		public Duration getTimeToLive(Object key, Object value) {
+			return JitterUtil.applyJitter(baseTtl);
+		}
 	}
 }
