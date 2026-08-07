@@ -82,7 +82,7 @@ public class OrderCommandService {
 		Long occupiedByMe = redisUtil.execute(
 			VERIFY_OCCUPY_SCRIPT,
 			occupyKeys,
-			command.getUserId().toString()
+			command.getUserId()
 		);
 
 		// 좌석 점유 유효 시간(5분)이 지났거나, 본인 것이 아님
@@ -199,7 +199,7 @@ public class OrderCommandService {
 		Long occupiedByMe = redisUtil.execute(
 			VERIFY_OCCUPY_SCRIPT,
 			occupyKeys,
-			command.getUserId().toString()
+			command.getUserId()
 		);
 
 		if (occupiedByMe == null || occupiedByMe != 1L) {

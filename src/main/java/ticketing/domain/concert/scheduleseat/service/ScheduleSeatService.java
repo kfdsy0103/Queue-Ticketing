@@ -12,7 +12,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import org.springframework.cache.annotation.Cacheable;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -110,10 +109,10 @@ public class ScheduleSeatService {
 		long now = System.currentTimeMillis();
 		long expiresAtMillis = now + OCCUPY_TTL.toMillis();
 		List<Object> args = new ArrayList<>();
-		args.add(command.getUserId().toString());
-		args.add(String.valueOf(OCCUPY_TTL.toSeconds()));
-		args.add(String.valueOf(expiresAtMillis));
-		command.getScheduleSeatIds().forEach(scheduleSeatId -> args.add(scheduleSeatId.toString()));
+		args.add(command.getUserId());
+		args.add(OCCUPY_TTL.toSeconds());
+		args.add(expiresAtMillis);
+		args.addAll(command.getScheduleSeatIds());
 
 		// 점유 스크립트 실행
 		Long occupied = redisUtil.execute(OCCUPY_SCRIPT, keys, args.toArray());
