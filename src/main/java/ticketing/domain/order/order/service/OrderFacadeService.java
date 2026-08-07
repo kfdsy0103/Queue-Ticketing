@@ -46,14 +46,10 @@ public class OrderFacadeService {
 			throw new GeneralException(OrderErrorCode.ORDER_IN_PROGRESS);
 		}
 
-		Long orderId;
+		Long orderId = null;
 		try {
 			orderId = orderCommandService.createOrder(command);
-		} finally {
-			redisLockService.releaseLock(lockKey);
-		}
 
-		try {
 			KakaoPayReadyResponse readyResponse = kakaoPayApiClient.ready(
 				KakaoPayReadyRequest.builder()
 					.orderId(orderId)
@@ -74,6 +70,8 @@ public class OrderFacadeService {
 		} catch (Exception e) {
 			orderCommandService.expireOrder(orderId);
 			throw e;
+		} finally {
+			redisLockService.releaseLock(lockKey);
 		}
 	}
 
