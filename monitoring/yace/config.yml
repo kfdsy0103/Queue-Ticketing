@@ -9,8 +9,8 @@ discovery:
     - type: AWS/RDS
       regions:
         - ap-northeast-2
-      period: 60
-      length: 60
+      period: 60    # 1분 단위 데이터 조회
+      length: 300   # 조회 윈도우는 5분
       metrics:
         - name: CPUUtilization
           statistics: [Average]
