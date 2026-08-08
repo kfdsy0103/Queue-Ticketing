@@ -44,4 +44,27 @@ public class AsyncConfig {
 		executor.initialize();
 		return executor;
 	}
+
+	/**
+	 * 캐시 갱신용 스레드 풀
+	 */
+	@Bean(name = "cacheRefreshExecutor")
+	public Executor cacheRefreshExecutor() {
+		ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+		executor.setCorePoolSize(2);
+		executor.setMaxPoolSize(4);
+		executor.setQueueCapacity(30);
+		executor.setThreadNamePrefix("cache-refresh-");
+		executor.setTaskDecorator(mdcTaskDecorator);
+		// 조기 갱신은 실패해도 기존 캐시 값으로 응답이 나가므로 예외를 던지지 않고 버린다
+		executor.setRejectedExecutionHandler((task, exe) -> log.warn(
+			"캐시 갱신 큐가 가득 찼습니다. active={}, pool={}, queue={}, completed={}",
+			exe.getActiveCount(),
+			exe.getPoolSize(),
+			exe.getQueue().size(),
+			exe.getCompletedTaskCount()
+		));
+		executor.initialize();
+		return executor;
+	}
 }
