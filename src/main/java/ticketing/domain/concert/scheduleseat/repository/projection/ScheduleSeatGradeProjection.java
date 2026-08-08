@@ -1,4 +1,4 @@
-package ticketing.domain.concert.scheduleseat.repository;
+package ticketing.domain.concert.scheduleseat.repository.projection;
 
 public interface ScheduleSeatGradeProjection {
 	Long getScheduleSeatId();

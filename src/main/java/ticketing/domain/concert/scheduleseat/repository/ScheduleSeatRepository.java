@@ -8,10 +8,25 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import ticketing.domain.concert.scheduleseat.entity.ScheduleSeat;
+import ticketing.domain.concert.scheduleseat.repository.projection.ScheduleSeatGradeProjection;
+import ticketing.domain.concert.scheduleseat.repository.projection.ScheduleSeatStatusProjection;
 
 public interface ScheduleSeatRepository extends JpaRepository<ScheduleSeat, Long> {
 
-	List<ScheduleSeat> findAllByConcertScheduleId(Long concertScheduleId);
+	/**
+	 * 좌석 배치도 조회에 필요한 컬럼만 Projection으로 조회합니다.
+	 * seat_id는 FK 컬럼이라 조인이 필요 없어, idx_schedule_seat_schedule_status 인덱스만 읽고 끝납니다.
+	 */
+	@Query("""
+		SELECT ss.id AS scheduleSeatId,
+		       ss.seat.id AS seatId,
+		       ss.seatStatus AS seatStatus
+		FROM ScheduleSeat ss
+		WHERE ss.concertSchedule.id = :concertScheduleId
+		""")
+	List<ScheduleSeatStatusProjection> findSeatStatusesByConcertScheduleId(
+		@Param("concertScheduleId") Long concertScheduleId
+	);
 
 	/**
 	 * 잔여 좌석 집계에 필요한 컬럼만, 지정한 상태의 좌석에 한해 Projection으로 조회합니다.

@@ -5,8 +5,8 @@ import java.util.List;
 
 import lombok.Builder;
 import lombok.Getter;
-import ticketing.domain.concert.scheduleseat.entity.ScheduleSeat;
 import ticketing.domain.concert.scheduleseat.enums.SeatDisplayStatus;
+import ticketing.domain.concert.scheduleseat.repository.projection.ScheduleSeatStatusProjection;
 
 public class FindAllDTO {
 
@@ -41,24 +41,6 @@ public class FindAllDTO {
 			return Result.of(Collections.emptyList());
 		}
 
-		@Getter
-		@Builder
-		public static class ScheduleSeatInfo {
-			Long scheduleSeatId;
-			Long concertScheduleId;
-			Long seatId;
-			SeatDisplayStatus seatStatus;
-
-			public static ScheduleSeatInfo of(ScheduleSeat scheduleSeat, SeatDisplayStatus seatStatus) {
-				return ScheduleSeatInfo.builder()
-					.scheduleSeatId(scheduleSeat.getId())
-					.concertScheduleId(scheduleSeat.getConcertSchedule().getId())
-					.seatId(scheduleSeat.getSeat().getId())
-					.seatStatus(seatStatus)
-					.build();
-			}
-		}
-
 		public Response toResponse() {
 			return Response.builder()
 				.scheduleSeats(scheduleSeats)
@@ -68,7 +50,29 @@ public class FindAllDTO {
 
 	@Getter
 	@Builder
+	public static class ScheduleSeatInfo {
+		Long scheduleSeatId;
+		Long concertScheduleId;
+		Long seatId;
+		SeatDisplayStatus seatStatus;
+
+		public static ScheduleSeatInfo of(
+			ScheduleSeatStatusProjection scheduleSeat,
+			Long concertScheduleId,
+			SeatDisplayStatus seatStatus
+		) {
+			return ScheduleSeatInfo.builder()
+				.scheduleSeatId(scheduleSeat.getScheduleSeatId())
+				.concertScheduleId(concertScheduleId)
+				.seatId(scheduleSeat.getSeatId())
+				.seatStatus(seatStatus)
+				.build();
+		}
+	}
+
+	@Getter
+	@Builder
 	public static class Response {
-		List<Result.ScheduleSeatInfo> scheduleSeats;
+		List<ScheduleSeatInfo> scheduleSeats;
 	}
 }

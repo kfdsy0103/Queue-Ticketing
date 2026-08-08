@@ -30,8 +30,9 @@ import ticketing.domain.concert.scheduleseat.dto.OccupyDTO;
 import ticketing.domain.concert.scheduleseat.entity.ScheduleSeat;
 import ticketing.domain.concert.scheduleseat.enums.SeatDisplayStatus;
 import ticketing.domain.concert.scheduleseat.exception.ScheduleSeatErrorCode;
-import ticketing.domain.concert.scheduleseat.repository.ScheduleSeatGradeProjection;
+import ticketing.domain.concert.scheduleseat.repository.projection.ScheduleSeatGradeProjection;
 import ticketing.domain.concert.scheduleseat.repository.ScheduleSeatRepository;
+import ticketing.domain.concert.scheduleseat.repository.projection.ScheduleSeatStatusProjection;
 import ticketing.domain.queue.constants.QueueRedisKeys;
 import ticketing.domain.queue.exception.QueueErrorCode;
 import ticketing.global.apiPayload.code.GeneralErrorCode;
@@ -150,26 +151,31 @@ public class ScheduleSeatService {
 			throw new GeneralException(QueueErrorCode.SESSION_REVOKED);	// 다른 화면에서 예매를 이어받은 경우 (이 화면은 종료)
 		}
 
-		List<ScheduleSeat> scheduleSeatEntities = scheduleSeatRepository.findAllByConcertScheduleId(command.getConcertScheduleId());
-		if (scheduleSeatEntities.isEmpty()) {
+		// 필요 컬럼만 프로젝션 조회
+		List<ScheduleSeatStatusProjection> scheduleSeatStatuses = scheduleSeatRepository.findSeatStatusesByConcertScheduleId(command.getConcertScheduleId());
+		if (scheduleSeatStatuses.isEmpty()) {
 			return FindAllDTO.Result.empty();
 		}
 
 		// 회차 인덱스에서 조회
 		Set<Long> occupiedSeatIds = findOccupiedSeatIdsInSchedule(command.getConcertScheduleId());
 
-		List<FindAllDTO.Result.ScheduleSeatInfo> scheduleSeats = scheduleSeatEntities.stream()
+		List<FindAllDTO.ScheduleSeatInfo> scheduleSeats = scheduleSeatStatuses.stream()
 			.map(scheduleSeat -> {
 				SeatDisplayStatus seatStatus;
 				if (scheduleSeat.getSeatStatus() == ScheduleSeat.SeatStatus.SOLD) {
 					seatStatus = SeatDisplayStatus.SOLD;
-				} else if (occupiedSeatIds.contains(scheduleSeat.getId())) {
+				} else if (occupiedSeatIds.contains(scheduleSeat.getScheduleSeatId())) {
 					seatStatus = SeatDisplayStatus.OCCUPIED;
 				} else {
 					seatStatus = SeatDisplayStatus.AVAILABLE;
 				}
 
-				return FindAllDTO.Result.ScheduleSeatInfo.of(scheduleSeat, seatStatus);
+				return FindAllDTO.ScheduleSeatInfo.of(
+					scheduleSeat,
+					command.getConcertScheduleId(),
+					seatStatus
+				);
 			})
 			.toList();
 
@@ -287,7 +293,7 @@ public class ScheduleSeatService {
 	}
 
 	/**
-	 * 회차 인덱스에서 현재 점유 중인 좌석 ID 목록을 조회합니다.
+	 * 회차 인덱스 ZSET에서 현재 점유 중인 좌석 ID 목록을 조회합니다.
 	 */
 	private Set<Long> findOccupiedSeatIdsInSchedule(Long concertScheduleId) {
 		Set<Object> members = redisUtil.zRangeByScoreFrom(
