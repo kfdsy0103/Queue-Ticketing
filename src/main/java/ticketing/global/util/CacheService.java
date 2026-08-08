@@ -12,6 +12,7 @@ import java.util.function.Supplier;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import ticketing.global.enums.CacheGroup;
 
@@ -41,21 +42,31 @@ public class CacheService {
 	private static final Duration LOCK_WAIT = Duration.ofMillis(2000L);
 	private static final Duration LOCK_LEASE = Duration.ofMillis(5000L);
 
+	// 캐시 히트율 집계용 메트릭
+	private static final String CACHE_GETS_METRIC = "ticketing.cache.gets";
+	private static final String TAG_GROUP = "group";
+	private static final String TAG_RESULT = "result";
+	private static final String RESULT_HIT = "hit";
+	private static final String RESULT_MISS = "miss";
+
 	// PER ok -> 백그라운드 갱신을 요청할 때, 여러 스레드의 중복 요청을 막기 위함
 	private final Set<String> inFlightKeys = ConcurrentHashMap.newKeySet();	// 락 범위가 key 단위인 자료구조
 
 	private final RedisUtil redisUtil;
 	private final RedisLockService redisLockService;
 	private final Executor cacheRefreshExecutor;
+	private final MeterRegistry meterRegistry;
 
 	public CacheService(
 		RedisUtil redisUtil,
 		RedisLockService redisLockService,
-		@Qualifier("cacheRefreshExecutor") Executor cacheRefreshExecutor
+		@Qualifier("cacheRefreshExecutor") Executor cacheRefreshExecutor,
+		MeterRegistry meterRegistry
 	) {
 		this.redisUtil = redisUtil;
 		this.redisLockService = redisLockService;
 		this.cacheRefreshExecutor = cacheRefreshExecutor;
+		this.meterRegistry = meterRegistry;
 	}
 
 	/**
@@ -69,13 +80,17 @@ public class CacheService {
 		// 1. Miss - DB 조회
 		if (wrappedCache == null) {
 			log.debug("캐시 미스 - key: {}", cacheKey);
+			recordCacheResult(group, RESULT_MISS);
 			return refreshCacheWithLock(group, key, dbQuery);
 		}
 
 		Long remainingTTL = redisUtil.getExpire(cacheKey, TimeUnit.MILLISECONDS);
 		if (remainingTTL == null || remainingTTL <= 0) {
+			recordCacheResult(group, RESULT_MISS);
 			return refreshCacheWithLock(group, key, dbQuery);
 		}
+
+		recordCacheResult(group, RESULT_HIT);
 
 		// 2. Hit + PER o
 		double randomGap = ThreadLocalRandom.current().nextDouble();
@@ -193,6 +208,17 @@ public class CacheService {
 	}
 
 	private String getCacheKey(CacheGroup group, String key) {
-		return CACHE_PREFIX + group.getKeyPrefix() + ":" + key;
+		return CACHE_PREFIX + group.getCacheName() + ":" + key;
+	}
+
+	/**
+	 * 캐시 그룹별 조회 결과(hit/miss)를 집계합니다.
+	 */
+	private void recordCacheResult(CacheGroup group, String result) {
+		meterRegistry.counter(
+			CACHE_GETS_METRIC,
+			TAG_GROUP, group.getCacheName(),
+			TAG_RESULT, result
+		).increment();
 	}
 }

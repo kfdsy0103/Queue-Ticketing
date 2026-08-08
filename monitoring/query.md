@@ -51,3 +51,6 @@ query...
 - {service="ticketing-api", level="INFO"}
 - {service="ticketing-api", level="WARN"}
 - {service="ticketing-api", level="ERROR"}
+
+## 7. 캐시 히트율 (PER Beta 튜닝 목적)
+- 그룹별 히트율: sum(rate(ticketing_cache_gets_total{result="hit"}[$__rate_interval])) by (group) / sum(rate(ticketing_cache_gets_total[$__rate_interval])) by (group)
