@@ -15,6 +15,8 @@ import lombok.extern.slf4j.Slf4j;
 @RequiredArgsConstructor
 public class RedisLockService {
 
+	private static final String LOCK_PREFIX = "lock:";
+
 	private final RedissonClient redissonClient;
 
 	/**
@@ -22,7 +24,7 @@ public class RedisLockService {
 	 */
 	public boolean tryLock(String key, Duration lease) {
 		try {
-			RLock lock = redissonClient.getLock(key);
+			RLock lock = redissonClient.getLock(getLockKey(key));
 			return lock.tryLock(0, lease.toMillis(), TimeUnit.MILLISECONDS);
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
@@ -36,7 +38,7 @@ public class RedisLockService {
 	 */
 	public boolean tryLock(String key, Duration lease, Duration waitFor) {
 		try {
-			RLock lock = redissonClient.getLock(key);
+			RLock lock = redissonClient.getLock(getLockKey(key));
 			return lock.tryLock(waitFor.toMillis(), lease.toMillis(), TimeUnit.MILLISECONDS);
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
@@ -49,9 +51,16 @@ public class RedisLockService {
 	 * 락을 해제합니다.
 	 */
 	public void releaseLock(String key) {
-		RLock lock = redissonClient.getLock(key);
+		RLock lock = redissonClient.getLock(getLockKey(key));
 		if (lock.isHeldByCurrentThread()) {
 			lock.unlock();
 		}
+	}
+
+	/**
+	 * 락 키에는 접두어를 붙여 다른 용도의 키와 섞이지 않도록 합니다.
+	 */
+	private String getLockKey(String key) {
+		return LOCK_PREFIX + key;
 	}
 }

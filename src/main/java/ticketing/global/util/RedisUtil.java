@@ -55,9 +55,24 @@ public class RedisUtil {
 	}
 
 	/**
+	 * 직렬화된 객체를 그대로 조회합니다. (GET)
+	 * 문자열이 아닌 값을 캐시에서 꺼낼 때 사용합니다.
+	 */
+	public Object getObject(String key) {
+		return redisTemplate.opsForValue().get(key);
+	}
+
+	/**
 	 * String 값을 TTL과 함께 저장합니다. (SET + EX)
 	 */
 	public void set(String key, String value, Duration ttl) {
+		redisTemplate.opsForValue().set(key, value, ttl);
+	}
+
+	/**
+	 * 객체를 TTL과 함께 저장합니다. (SET + PX)
+	 */
+	public void set(String key, Object value, Duration ttl) {
 		redisTemplate.opsForValue().set(key, value, ttl);
 	}
 
@@ -94,6 +109,13 @@ public class RedisUtil {
 	 */
 	public Long getExpire(String key) {
 		return redisTemplate.getExpire(key, TimeUnit.SECONDS);
+	}
+
+	/**
+	 * Key의 남은 TTL을 원하는 단위로 조회합니다. (PTTL/TTL) Key가 없거나 만료 시간이 없으면 음수가 반환됩니다.
+	 */
+	public Long getExpire(String key, TimeUnit unit) {
+		return redisTemplate.getExpire(key, unit);
 	}
 
 	/**
