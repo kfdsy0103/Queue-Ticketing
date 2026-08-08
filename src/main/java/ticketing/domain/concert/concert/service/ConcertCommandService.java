@@ -9,10 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ticketing.domain.concert.concert.dto.CreateDTO;
-import ticketing.domain.concert.concert.dto.FindAllDTO;
-import ticketing.domain.concert.concert.dto.FindDTO;
 import ticketing.domain.concert.concert.entity.Concert;
-import ticketing.domain.concert.concert.exception.ConcertErrorCode;
 import ticketing.domain.concert.concert.repository.ConcertRepository;
 import ticketing.domain.concert.concertschedule.entity.ConcertSchedule;
 import ticketing.domain.concert.concertschedule.repository.ConcertScheduleRepository;
@@ -33,7 +30,7 @@ import ticketing.global.apiPayload.exception.GeneralException;
 @Service
 @RequiredArgsConstructor
 @Transactional(readOnly = false)
-public class ConcertService {
+public class ConcertCommandService {
 
 	private final ConcertRepository concertRepository;
 	private final ConcertScheduleRepository concertScheduleRepository;
@@ -103,18 +100,5 @@ public class ConcertService {
 
 		// 응답 Result DTO 반환
 		return CreateDTO.Result.of(concert, concertSchedules);
-	}
-
-	public FindDTO.Result find(FindDTO.Command command) {
-		Concert concert = concertRepository.findById(command.getConcertId())
-			.orElseThrow(() -> new GeneralException(ConcertErrorCode.CONCERT_NOT_FOUND));
-
-		return FindDTO.Result.from(concert);
-	}
-
-	public FindAllDTO.Result findAll() {
-		return FindAllDTO.Result.of(concertRepository.findAll().stream()
-			.map(FindAllDTO.ConcertInfo::from)
-			.toList());
 	}
 }
