@@ -2,6 +2,7 @@ package ticketing.domain.concert.concert.dto;
 
 import lombok.Builder;
 import lombok.Getter;
+import lombok.extern.jackson.Jacksonized;
 import ticketing.domain.concert.concert.entity.Concert;
 
 public class FindDTO {
@@ -20,6 +21,7 @@ public class FindDTO {
 
 	@Getter
 	@Builder
+	@Jacksonized
 	public static class Result {
 		Long concertId;
 		String title;

@@ -5,6 +5,7 @@ import java.time.LocalDateTime;
 
 import lombok.Builder;
 import lombok.Getter;
+import lombok.extern.jackson.Jacksonized;
 import ticketing.domain.concert.concertschedule.entity.ConcertSchedule;
 
 public class FindDTO {
@@ -23,6 +24,7 @@ public class FindDTO {
 
 	@Getter
 	@Builder
+	@Jacksonized
 	public static class Result {
 		Long concertScheduleId;
 		Long concertId;
