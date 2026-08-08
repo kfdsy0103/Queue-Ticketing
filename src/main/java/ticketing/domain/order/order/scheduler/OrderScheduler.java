@@ -51,7 +51,7 @@ public class OrderScheduler {
 		for (Order order : orphanedPendingOrders) {
 
 			String lockKey = OrderRedisKeys.confirmLockKey(order.getId());
-			if (!redisLockService.tryLock(lockKey, "scheduler", LOCK_TTL)) {
+			if (!redisLockService.tryLock(lockKey, LOCK_TTL)) {
 				continue;	// confirm()과 경합된 상황
 			}
 

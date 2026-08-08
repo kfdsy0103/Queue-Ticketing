@@ -55,7 +55,7 @@ public class PaymentScheduler {
 		for (Payment payment : stalePayments) {
 
 			String lockKey = OrderRedisKeys.confirmLockKey(payment.getOrder().getId());
-			if (!redisLockService.tryLock(lockKey, "scheduler", LOCK_TTL)) {
+			if (!redisLockService.tryLock(lockKey, LOCK_TTL)) {
 				continue;	// confirm()과 경합이 났음을 의미
 			}
 
@@ -88,7 +88,7 @@ public class PaymentScheduler {
 		for (Payment payment : staleCancels) {
 
 			String lockKey = OrderRedisKeys.confirmLockKey(payment.getOrder().getId());
-			if (!redisLockService.tryLock(lockKey, "scheduler", LOCK_TTL)) {
+			if (!redisLockService.tryLock(lockKey, LOCK_TTL)) {
 				continue;	// cancelAll()과 경합이 났음을 의미
 			}
 

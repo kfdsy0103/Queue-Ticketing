@@ -40,7 +40,7 @@ public class OrderFacadeService {
 	public CreateDTO.Result create(CreateDTO.Command command) {
 
 		String lockKey = OrderRedisKeys.createLockKey(command.getUserId());
-		boolean acquired = redisLockService.tryLock(lockKey, command.getUserId().toString(), CREATE_LOCK_TTL);
+		boolean acquired = redisLockService.tryLock(lockKey, CREATE_LOCK_TTL);
 
 		if (!acquired) {
 			throw new GeneralException(OrderErrorCode.ORDER_IN_PROGRESS);
@@ -82,7 +82,7 @@ public class OrderFacadeService {
 	public ConfirmDTO.Result confirm(ConfirmDTO.Command command) {
 
 		String lockKey = OrderRedisKeys.confirmLockKey(command.getOrderId());
-		boolean acquired = redisLockService.tryLock(lockKey, command.getUserId().toString(), LOCK_TTL);
+		boolean acquired = redisLockService.tryLock(lockKey, LOCK_TTL);
 
 		if (!acquired) {
 			throw new GeneralException(OrderErrorCode.ORDER_IN_PROGRESS);
@@ -120,7 +120,7 @@ public class OrderFacadeService {
 	public CancelDTO.Result cancelAll(CancelDTO.Command command) {
 
 		String lockKey = OrderRedisKeys.confirmLockKey(command.getOrderId());
-		boolean acquired = redisLockService.tryLock(lockKey, command.getUserId().toString(), LOCK_TTL);
+		boolean acquired = redisLockService.tryLock(lockKey, LOCK_TTL);
 
 		if (!acquired) {
 			throw new GeneralException(OrderErrorCode.ORDER_IN_PROGRESS);
