@@ -1,7 +1,10 @@
 package ticketing.global.util;
 
 import java.time.Duration;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
@@ -21,6 +24,10 @@ import ticketing.global.enums.CacheGroup;
  * 		1. Hit + PER X -> return cache;
  * 		2. Hit + PER O -> 백그라운드 갱신(블로킹 안하기 위해) + return cache;
  *  	3. Miss -> 분산락 + 더블 체크로 스템피드 방어
+ *
+ *  백그라운드 갱신 시 Task를 여러 번 제출되는 문제
+ *  	1. JVM 내에서 Task는 한번만 제출될 수 있도록 원자적 add 지원하는 자료구조 사용
+ *  	2. 분산 EC2 사이에서는 제출된 Task가 여러 개이므로, 하나만 DB 다녀올 수 있도록 분산락
  */
 @Slf4j
 @Service
@@ -33,6 +40,9 @@ public class CacheService {
 	private static final String CACHE_PREFIX = "cache:";
 	private static final Duration LOCK_WAIT = Duration.ofMillis(2000L);
 	private static final Duration LOCK_LEASE = Duration.ofMillis(5000L);
+
+	// PER ok -> 백그라운드 갱신을 요청할 때, 여러 스레드의 중복 요청을 막기 위함
+	private final Set<String> inFlightKeys = ConcurrentHashMap.newKeySet();	// 락 범위가 key 단위인 자료구조
 
 	private final RedisUtil redisUtil;
 	private final RedisLockService redisLockService;
@@ -74,7 +84,7 @@ public class CacheService {
 
 		if (gapScore > remainingTTL) {
 			log.info("PER에 의해 백그라운드에서 캐시를 갱신합니다 - key: {}, remainingTTL: {}", cacheKey, remainingTTL);
-			cacheRefreshExecutor.execute(() -> refreshInBackground(group, cacheKey, dbQuery));	// 갱신 위임
+			submitRefreshTaskInBackground(group, cacheKey, dbQuery);	// 갱신 위임
 			return wrappedCache.getCachedData();
 		}
 
@@ -115,12 +125,40 @@ public class CacheService {
 	}
 
 	/**
+	 * 백그라운드 갱신 Task를 스레드 풀에 제출합니다.
+	 * JVM 레벨에서 동일한 Cache Key가 이미 제출되었으면, 풀로 제출하지 않습니다.
+	 * 		-> 불필요한 중복 Task 요청으로 인한 포화를 막기 위함
+	 *		-> EC2 당 하나의 Task만 제출됨
+	 *		-> EC2 여러 대면 글로벌 락으로 하나만 DB 접근하도록 2차적으로 막아야 할듯
+	 */
+	private <T> void submitRefreshTaskInBackground(CacheGroup group, String cacheKey, Supplier<T> dbQuery) {
+
+		// putIfAbsent
+		if (!inFlightKeys.add(cacheKey)) {
+			return;
+		}
+
+		try {
+			cacheRefreshExecutor.execute(() -> {
+				try {
+					refreshInBackground(group, cacheKey, dbQuery);
+				} finally {
+					inFlightKeys.remove(cacheKey);	// 작업 완료 후 제거
+				}
+			});
+		} catch (RejectedExecutionException e) {
+			inFlightKeys.remove(cacheKey);	// 예외 시에도 제거
+		}
+	}
+
+	/**
 	 * 백그라운드에서 DB를 조회하여 캐시를 갱신합니다.
 	 */
 	private <T> void refreshInBackground(CacheGroup group, String cacheKey, Supplier<T> dbQuery) {
 
 		boolean acquired = false;
 
+		// 여기서 글로벌 락은 왜? -> JVM 레벨에서의 Task 중복 제출은 막음, 그러나 EC2는 여러 대라 Task는 EC2 대수만큼 제출되므르 하나만 DB 접근할 수 있도록 하기 위함
 		try {
 			acquired = redisLockService.tryLock(cacheKey, LOCK_LEASE);
 			if (acquired) {

@@ -56,14 +56,16 @@ public class AsyncConfig {
 		executor.setQueueCapacity(30);
 		executor.setThreadNamePrefix("cache-refresh-");
 		executor.setTaskDecorator(mdcTaskDecorator);
-		// 조기 갱신은 실패해도 기존 캐시 값으로 응답이 나가므로 예외를 던지지 않고 버린다
-		executor.setRejectedExecutionHandler((task, exe) -> log.warn(
-			"캐시 갱신 큐가 가득 찼습니다. active={}, pool={}, queue={}, completed={}",
-			exe.getActiveCount(),
-			exe.getPoolSize(),
-			exe.getQueue().size(),
-			exe.getCompletedTaskCount()
-		));
+		executor.setRejectedExecutionHandler((task, exe) -> {
+			log.warn(
+				"캐시 갱신 큐가 가득 찼습니다. active={}, pool={}, queue={}, completed={}",
+				exe.getActiveCount(),
+				exe.getPoolSize(),
+				exe.getQueue().size(),
+				exe.getCompletedTaskCount()
+			);
+			throw new RejectedExecutionException("캐시 갱신 큐가 가득 차 작업을 처리할 수 없습니다.");
+		});
 		executor.initialize();
 		return executor;
 	}
