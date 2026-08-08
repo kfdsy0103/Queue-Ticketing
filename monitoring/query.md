@@ -1,0 +1,53 @@
+## 대시보드는 dashboard.md
+
+## 1. EC2 Node Exporter (Spring 서버)
+- CPU: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle", instance="$node"}[$__rate_interval])) * 100)
+- Memory: (1 - (node_memory_MemAvailable_bytes{instance="$node"} / node_memory_MemTotal_bytes{instance="$node"})) * 100
+- GC 평균 Paused Time: sum by(action, cause) (rate(jvm_gc_pause_seconds_sum{instance="$instance", application="$application", namespace="$Namespace"}[$__rate_interval])) / sum by(action, cause) (rate(jvm_gc_pause_seconds_count{instance="$instance", application="$application", namespace="$Namespace"}[$__rate_interval]))
+
+## 2. Mysql Exporter + CloudWatch Exporter 사용하여 RDS의 CPU 및 Memory 추출 (스크랩하려는 리소스에 태그를 하나 이상 부여해야 식별됨에 유의)
+- TPS: rate(mysql_global_status_commands_total{command="commit"}[1m])
+- CPU: aws_rds_cpuutilization_average{dimension_DBInstanceIdentifier!=""}
+- Memory: aws_rds_freeable_memory_average{dimension_DBInstanceIdentifier!=""} / 1024 / 1024 / 1024 (여유 메모리 GB)
+
+## 3. Slow 상세 Query 활성화 방법
+```
+[활성화 현황 확인 및 저장 위치 확인]
+
+SHOW VARIABLES LIKE 'slow_query_log';
+SHOW VARIABLES LIKE 'slow_query_log_file';
+SHOW VARIABLES LIKE 'long_query_time';
+
+[슬로우 쿼리 로그 기록 활성화]
+
+SET GLOBAL slow_query_log = ON;
+-- 1초 이상 소요되는 쿼리문을 슬로우 쿼리로 지정
+SET GLOBAL long_query_time = 1;
+
+[슬로우 쿼리 확인]
+슬로우 쿼리 로그 파일 내부를 확인하면 아래와 같이 슬로우 쿼리를 확인 할 수 있다.
+
+[root@localhost mysql]# cat localhost-slow.log
+/usr/libexec/mysqld, Version: 8.0.41 (Source distribution). started with:
+Tcp port: 3306  Unix socket: /var/lib/mysql/mysql.sock
+Time                 Id Command    Argument
+# Time: 2025-07-27T02:49:52.528663Z
+# User@Host: admin[admin] @  [172.30.1.25]  Id:  4008
+# Query_time: 32.438005  Lock_time: 0.000003 Rows_sent: 0  Rows_examined: 13716675
+
+query...
+
+```
+
+## 4. Redis Exporter
+- CPU: sum(rate(redis_cpu_user_seconds_total{instance=~"$instance"}[1m]) + rate(redis_cpu_sys_seconds_total{instance=~"$instance"}[1m])) by (instance) * 100
+- Memory: 100 * (redis_memory_used_bytes{instance=~"$instance"}  / redis_memory_max_bytes{instance=~"$instance"} )
+
+## 5. K6
+- 커스텀 Trend p99: {__name__=~"k6_(enter|status|seats|occupy|order|confirm|concerts|concert|concert_schedules|concert_schedule|remaining_seats|my_occupy)_duration_p99"}
+- 전체 p99: avg(k6_http_req_duration_p99)
+
+## 6. 로그
+- {service="ticketing-api", level="INFO"}
+- {service="ticketing-api", level="WARN"}
+- {service="ticketing-api", level="ERROR"}
