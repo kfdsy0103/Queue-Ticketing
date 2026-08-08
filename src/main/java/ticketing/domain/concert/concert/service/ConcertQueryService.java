@@ -41,4 +41,17 @@ public class ConcertQueryService {
 			.map(FindAllDTO.ConcertInfo::from)
 			.toList());
 	}
+
+	/**
+	 * 티켓 오픈 10분 직전부터 스케쥴러에서 호출되는 워밍업 메서드.
+	 */
+	public void warmUpCache(Long concertId) {
+		cacheService.getCacheWithPER(
+			CacheGroup.CONCERT_DETAIL,
+			concertId.toString(),
+			() -> concertRepository.findById(concertId)
+				.map(FindDTO.Result::from)
+				.orElseThrow(() -> new GeneralException(ConcertErrorCode.CONCERT_NOT_FOUND))
+		);
+	}
 }

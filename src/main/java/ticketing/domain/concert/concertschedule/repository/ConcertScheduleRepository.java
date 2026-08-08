@@ -10,8 +10,9 @@ import ticketing.domain.concert.concertschedule.entity.ConcertSchedule;
 
 public interface ConcertScheduleRepository extends JpaRepository<ConcertSchedule, Long> {
 
-	List<ConcertSchedule> findAllByTicketOpenAtBeforeAndPerformanceDateGreaterThanEqual(
-		LocalDateTime ticketOpenAt, LocalDate performanceDate);
+	List<ConcertSchedule> findAllByTicketOpenAtBeforeAndPerformanceDateGreaterThanEqual(LocalDateTime ticketOpenAt, LocalDate performanceDate);
 
 	List<ConcertSchedule> findAllByConcertId(Long concertId);
+
+	List<ConcertSchedule> findAllByTicketOpenAtBetween(LocalDateTime from, LocalDateTime to);
 }
