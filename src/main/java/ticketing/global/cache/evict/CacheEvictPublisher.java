@@ -1,5 +1,7 @@
 package ticketing.global.cache.evict;
 
+import java.util.UUID;
+
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.retry.annotation.Backoff;
 import org.springframework.retry.annotation.Recover;
@@ -15,7 +17,13 @@ import ticketing.global.cache.constants.CacheChannel;
 @RequiredArgsConstructor
 public class CacheEvictPublisher {
 
+	private final String instanceId = UUID.randomUUID().toString();
+
 	private final RedisTemplate<String, Object> redisTemplate;
+
+	public String getInstanceId() {
+		return instanceId;
+	}
 
 	@Retryable(
 		include = Exception.class,
@@ -26,7 +34,7 @@ public class CacheEvictPublisher {
 	public void publish(String cacheName, String cacheKey) {
 		redisTemplate.convertAndSend(
 			CacheChannel.CACHE_EVICT,
-			new CacheEvictMessage(cacheName, cacheKey)
+			new CacheEvictMessage(cacheName, cacheKey, instanceId)
 		);
 		log.debug("[CacheEvictPublisher] 로컬 캐시 무효화 발행. cacheKey={}", cacheKey);
 	}
