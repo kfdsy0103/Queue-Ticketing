@@ -1,6 +1,6 @@
 package ticketing.global.cache.manager;
 
-import ticketing.global.cache.wrapper.CacheWrapper;
+import ticketing.global.cache.dto.CacheEntry;
 import ticketing.global.cache.enums.CacheGroup;
 import ticketing.global.cache.enums.CacheType;
 
@@ -14,12 +14,12 @@ public interface CacheManager {
 	/**
 	 * 캐시 데이터를 조회합니다.
 	 */
-	<T> CacheWrapper<T> get(CacheGroup group, String cacheKey);
+	<T> CacheEntry<T> get(CacheGroup group, String cacheKey);
 
 	/**
 	 * 캐시 데이터를 적재합니다.
 	 */
-	void set(CacheGroup group, String cacheKey, CacheWrapper<?> value);
+	void set(CacheGroup group, String cacheKey, CacheEntry<?> value);
 
 	/**
 	 * 남은 TTL을 밀리초로 반환합니다.

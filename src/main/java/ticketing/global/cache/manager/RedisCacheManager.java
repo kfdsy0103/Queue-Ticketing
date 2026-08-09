@@ -6,7 +6,7 @@ import java.util.concurrent.TimeUnit;
 import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
-import ticketing.global.cache.wrapper.CacheWrapper;
+import ticketing.global.cache.dto.CacheEntry;
 import ticketing.global.util.JitterUtil;
 import ticketing.global.cache.enums.CacheGroup;
 import ticketing.global.cache.enums.CacheType;
@@ -24,12 +24,12 @@ public class RedisCacheManager implements CacheManager {
 	}
 
 	@Override
-	public <T> CacheWrapper<T> get(CacheGroup group, String cacheKey) {
-		return (CacheWrapper<T>) redisUtil.getObject(cacheKey);
+	public <T> CacheEntry<T> get(CacheGroup group, String cacheKey) {
+		return (CacheEntry<T>) redisUtil.getObject(cacheKey);
 	}
 
 	@Override
-	public void set(CacheGroup group, String cacheKey, CacheWrapper<?> value) {
+	public void set(CacheGroup group, String cacheKey, CacheEntry<?> value) {
 		Duration ttl = JitterUtil.applyJitter(group.getExpiredAfterWriteGlobal());
 		redisUtil.set(cacheKey, value, ttl);
 	}

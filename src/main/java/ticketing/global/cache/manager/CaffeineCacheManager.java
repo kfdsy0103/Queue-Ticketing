@@ -10,7 +10,7 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 
 import lombok.extern.slf4j.Slf4j;
-import ticketing.global.cache.wrapper.CacheWrapper;
+import ticketing.global.cache.dto.CacheEntry;
 import ticketing.global.cache.enums.CacheGroup;
 import ticketing.global.cache.enums.CacheType;
 
@@ -18,7 +18,7 @@ import ticketing.global.cache.enums.CacheType;
 @Component
 public class CaffeineCacheManager implements CacheManager {
 
-	private final Map<String, Cache<String, CacheWrapper<?>>> caches = new HashMap<>();
+	private final Map<String, Cache<String, CacheEntry<?>>> caches = new HashMap<>();
 
 	public CaffeineCacheManager() {
 		// Local을 사용하는 캐시이면 해당 그룹을 카페인에 등록
@@ -43,14 +43,14 @@ public class CaffeineCacheManager implements CacheManager {
 	}
 
 	@Override
-	public <T> CacheWrapper<T> get(CacheGroup group, String cacheKey) {
-		Cache<String, CacheWrapper<?>> cache = caches.get(group.getCacheName());
-		return (CacheWrapper<T>) cache.getIfPresent(cacheKey);
+	public <T> CacheEntry<T> get(CacheGroup group, String cacheKey) {
+		Cache<String, CacheEntry<?>> cache = caches.get(group.getCacheName());
+		return (CacheEntry<T>) cache.getIfPresent(cacheKey);
 	}
 
 	@Override
-	public void set(CacheGroup group, String cacheKey, CacheWrapper<?> value) {
-		Cache<String, CacheWrapper<?>> cache = caches.get(group.getCacheName());
+	public void set(CacheGroup group, String cacheKey, CacheEntry<?> value) {
+		Cache<String, CacheEntry<?>> cache = caches.get(group.getCacheName());
 		if (cache != null) {
 			cache.put(cacheKey, value);
 		}
@@ -59,7 +59,7 @@ public class CaffeineCacheManager implements CacheManager {
 	@Override
 	public Long getExpire(CacheGroup group, String cacheKey) {
 
-		Cache<String, CacheWrapper<?>> cache = caches.get(group.getCacheName());
+		Cache<String, CacheEntry<?>> cache = caches.get(group.getCacheName());
 		if (cache == null) {
 			return null;
 		}
@@ -81,7 +81,7 @@ public class CaffeineCacheManager implements CacheManager {
 	public void evict(CacheGroup group, String cacheKey) {
 		String cacheName = group.getCacheName();
 
-		Cache<String, CacheWrapper<?>> cache = caches.get(cacheName);
+		Cache<String, CacheEntry<?>> cache = caches.get(cacheName);
 		if (cache == null) {
 			log.warn("[CaffeineCacheManager] 로컬 캐시를 쓰지 않는 캐시명입니다. cacheName={}", cacheName);
 			return;
