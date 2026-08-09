@@ -1,4 +1,4 @@
-package ticketing.global.constants;
+package ticketing.global.cache.constants;
 
 public class CacheName {
 	public static final String CONCERT_DETAIL = "concertDetail";
