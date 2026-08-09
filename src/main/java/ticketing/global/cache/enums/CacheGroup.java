@@ -34,4 +34,13 @@ public enum CacheGroup {
 	public boolean useLocalCache() {
 		return (this.cacheType.equals(CacheType.LOCAL) || this.cacheType.equals(CacheType.COMPOSITE));
 	}
+
+	public static CacheGroup fromCacheName(String cacheName) {
+		for (CacheGroup group : values()) {
+			if (group.cacheName.equals(cacheName)) {
+				return group;
+			}
+		}
+		return null;
+	}
 }
