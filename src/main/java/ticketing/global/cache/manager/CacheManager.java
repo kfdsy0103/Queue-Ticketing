@@ -1,13 +1,13 @@
 package ticketing.global.cache.manager;
 
-import ticketing.global.cache.CacheWrapper;
+import ticketing.global.cache.wrapper.CacheWrapper;
 import ticketing.global.cache.enums.CacheGroup;
 import ticketing.global.cache.enums.CacheType;
 
 public interface CacheManager {
 
 	/**
-	 * LOCAL or GLOBAL
+	 * LOCAL or GLOBAL 타입별로 전략 작성, CacheService에서 캐시 유형에 따라 오케스트레이션하도록
 	 */
 	CacheType getSupportedType();
 

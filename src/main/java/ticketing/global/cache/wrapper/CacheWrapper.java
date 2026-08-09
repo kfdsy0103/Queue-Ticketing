@@ -1,4 +1,4 @@
-package ticketing.global.cache;
+package ticketing.global.cache.wrapper;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
