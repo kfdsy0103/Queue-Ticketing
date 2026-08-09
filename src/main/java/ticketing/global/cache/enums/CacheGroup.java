@@ -30,4 +30,8 @@ public enum CacheGroup {
 	private final Duration expiredAfterWriteGlobal;
 	private final Duration expiredAfterWriteLocal;
 	private final long maximumSize;
+
+	public boolean useLocalCache() {
+		return (this.cacheType.equals(CacheType.LOCAL) || this.cacheType.equals(CacheType.COMPOSITE));
+	}
 }
