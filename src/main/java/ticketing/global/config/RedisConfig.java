@@ -22,8 +22,8 @@ import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import lombok.RequiredArgsConstructor;
-import ticketing.global.cache.constants.CacheChannel;
-import ticketing.global.cache.evict.CacheEvictSubscriber;
+import ticketing.global.cache.eviction.CacheChannel;
+import ticketing.global.cache.eviction.CacheEvictSubscriber;
 
 @Configuration
 @RequiredArgsConstructor

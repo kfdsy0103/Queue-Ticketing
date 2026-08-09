@@ -1,4 +1,4 @@
-package ticketing.global.cache.evict;
+package ticketing.global.cache.eviction;
 
 import org.springframework.data.redis.connection.Message;
 import org.springframework.data.redis.connection.MessageListener;

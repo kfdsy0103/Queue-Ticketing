@@ -1,4 +1,4 @@
-package ticketing.global.cache.evict;
+package ticketing.global.cache.eviction;
 
 import java.util.UUID;
 
@@ -10,7 +10,6 @@ import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import ticketing.global.cache.constants.CacheChannel;
 
 @Slf4j
 @Component

@@ -1,4 +1,4 @@
-package ticketing.global.cache.evict;
+package ticketing.global.cache.eviction;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
