@@ -10,7 +10,9 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 
 import lombok.extern.slf4j.Slf4j;
+import ticketing.global.apiPayload.exception.GeneralException;
 import ticketing.global.cache.dto.CacheEntry;
+import ticketing.global.cache.exception.CacheErrorCode;
 import ticketing.global.cache.enums.CacheGroup;
 import ticketing.global.cache.enums.CacheType;
 
@@ -45,6 +47,10 @@ public class CaffeineCacheManager implements CacheManager {
 	@Override
 	public <T> CacheEntry<T> get(CacheGroup group, String cacheKey) {
 		Cache<String, CacheEntry<?>> cache = caches.get(group.getCacheName());
+		if (cache == null) {
+			log.error("[CaffeineCacheManager] 로컬 캐시를 쓰지 않는 캐시명입니다. cacheName={}", group.getCacheName());
+			throw new GeneralException(CacheErrorCode.LOCAL_CACHE_NOT_FOUND);
+		}
 		return (CacheEntry<T>) cache.getIfPresent(cacheKey);
 	}
 
