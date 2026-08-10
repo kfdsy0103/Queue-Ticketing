@@ -95,4 +95,14 @@ public class CaffeineCacheManager implements CacheManager {
 
 		cache.invalidate(cacheKey);
 	}
+
+	/**
+	 * 캐시 그룹 하나를 모두 비웁니다.
+	 */
+	public void clear(CacheGroup group) {
+		Cache<String, CacheEntry<?>> cache = caches.get(group.getCacheName());
+		if (cache != null) {
+			cache.invalidateAll();
+		}
+	}
 }

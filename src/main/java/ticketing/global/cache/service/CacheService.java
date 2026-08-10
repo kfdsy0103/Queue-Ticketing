@@ -1,4 +1,4 @@
-package ticketing.global.cache;
+package ticketing.global.cache.service;
 
 import java.time.Duration;
 import java.util.List;
@@ -6,7 +6,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -17,38 +16,40 @@ import org.springframework.stereotype.Service;
 
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
+import ticketing.global.apiPayload.exception.GeneralException;
+import ticketing.global.cache.constants.CacheMetric;
+import ticketing.global.cache.exception.CacheErrorCode;
 import ticketing.global.cache.enums.CacheGroup;
 import ticketing.global.cache.enums.CacheType;
-import ticketing.global.cache.evict.CacheEvictPublisher;
+import ticketing.global.cache.eviction.CacheEvictPublisher;
 import ticketing.global.cache.manager.CacheManager;
+import ticketing.global.cache.dto.CacheResult;
+import ticketing.global.cache.dto.CacheEntry;
 import ticketing.global.util.RedisLockService;
 
 /**
- * 캐시 계층을 오케스트레이션하는 진입점.
- * 저장소 접근은 CacheManager 구현체에 맡기고, 여기서는 갱신 정책만 다룹니다.
+ * 캐시 저장/획득 관련 오케스트레이션 역할, 기본적으로 PER로 동작하도록 함
+ * 구체적인 접근은 CacheManager 구현체에 위임
  *
- * timeToCompute * beta * -log(rand()) > remainingTTL
- * 		1. 캐시 조회
- * 		2. 캐시 생성 시간과 beta(가중치) 부여한 뒤 랜덤한 x값 생성
- * 		3. x 값과 remainingTTL을 비교하여 캐시 갱신 여부 결정
- *
+ * PER = timeToCompute * beta * -log(rand()) > remainingTTL
  * 		1. Hit + PER X -> return cache;
- * 		2. Hit + PER O -> 백그라운드 갱신(블로킹 안하기 위해) + return cache;
- *  	3. Miss -> 분산락 + 더블 체크로 스템피드 방어
+ * 		2. Hit + PER O -> 블로킹을 없애기 위해 백그라운드에 갱신 위임 + return cache;
+ * 		3. Miss -> 로컬이면 SingleFlight, 글로벌이면 분산락으로 스템피드 방어하면서 조회
  *
- *  PER은 미스했을 때 DB로 내려가는 계층에 건다.
- *  	1. LOCAL의 로컬 캐시     -> 미스하면 DB로 가므로 PER o (인스턴스별 캐시라 분산락은 x)
- *  	2. GLOBAL의 글로벌 캐시  -> 미스하면 DB로 가므로 PER o + 분산락 o
- *  	3. COMPOSITE의 로컬 캐시 -> 미스해도 글로벌 캐시로 갈 뿐이라 PER x
+ * 캐시 유형에 따른 스템피드 방어 전략
+ * 		1. LOCAL: 단일 인스턴스를 의미하니까 ConcurrentHashMap 기반 SingleFlight 패턴으로 방어
+ * 		2. GLOBAL: 글로벌이니 분산락으로 스템피드 방어
+ * 		3. COMPOSITE: 로컬캐시(L1) -> 글로벌캐시(L2) -> DB이니까, L1-L2는 SingleFlight, L2-DB는 분산락으로 스템피드 방어
  *
- *  백그라운드 갱신 시 Task를 여러 번 제출되는 문제
- *  	1. JVM 내에서 Task는 한번만 제출될 수 있도록 원자적 add 지원하는 자료구조 사용
- *  	2. 분산 EC2 사이에서는 제출된 Task가 여러 개이므로, 하나만 DB 다녀올 수 있도록 분산락
+ * 스템피드 대응 시 주의사항
+ * 		- 락 얻고 나서 캐시 한번 더 더블 체크 해줘야 한다.
+ * 		- 더블체크 안하면, 대기하던 모든 인원이 락 얻고 진입해서 DB로 쏠리기에 스템피드 재발
  *
- *  CacheType에 따라 타는 계층이 달라진다.
- *  	1. LOCAL     -> 로컬 캐시 -> DB
- *  	2. GLOBAL    -> 글로벌 캐시 -> DB
- *  	3. COMPOSITE -> 로컬 캐시 -> 글로벌 캐시 -> DB
+ * PER + 백그라운드 갱신시 고려한 점
+ * 		최대한 락으로 인한 블로킹 없이 빠르게 반환하자는게 목적이니까
+ * 		1. JVM 레벨에서 ConcurrentHashMap을 두어서 putIfAbsent로 백그라운드로 Task가 한번만 제출되도록 함
+ * 		2. 1번에 의하여 EC2당 하나의 Task를 갖게 될 것이고, EC2 대수만큼 DB에 접근할 것
+ * 			-> 또 다른 스템피드? 이거는 분산락으로 막기
  */
 @Slf4j
 @Service
@@ -62,204 +63,207 @@ public class CacheService {
 	private static final Duration LOCK_WAIT = Duration.ofMillis(2000L);
 	private static final Duration LOCK_LEASE = Duration.ofMillis(5000L);
 
-	// 캐시 히트율 집계용 메트릭
-	private static final String CACHE_GETS_METRIC = "ticketing.cache.gets";
-	private static final String TAG_GROUP = "group";
-	private static final String TAG_RESULT = "result";
-
-	private static final String RESULT_LOCAL_HIT = "local_hit";
-	private static final String RESULT_GLOBAL_HIT = "global_hit";
-	private static final String RESULT_MISS = "miss";
-
-	// PER ok -> 백그라운드 갱신을 요청할 때, 여러 스레드의 중복 요청을 막기 위함
-	private final Set<String> inFlightKeys = ConcurrentHashMap.newKeySet();	// 락 범위가 key 단위인 자료구조
-
-	private final Map<CacheType, CacheManager> cacheManagers;
-	private final RedisLockService redisLockService;
-	private final Executor cacheRefreshExecutor;
-	private final MeterRegistry meterRegistry;
-	private final CacheEvictPublisher cacheEvictPublisher;
+	private final MeterRegistry meterRegistry;								// Cache 관련 메트릭 수집용
+	private final RedisLockService redisLockService;						// RedisLockService
+	private final Map<CacheType, CacheManager> cacheManagers;				// 캐시 접근 구현체
+	private final CacheEvictPublisher cacheEvictPublisher;					// L1+L2 구조에서 로컬 캐시 간 일관성을 맞추려면 pub/sub으로 무효화
+	private final Executor cacheRefreshExecutor;							// 캐시를 갱신하는 백그라운드 스레드
+	private final SingleFlightExecutor singleFlightExecutor;				// JVM 레벨에서 스템피드 방어 목적 (ConcurrentHashMap)
+	private final Set<String> inFlightKeys = ConcurrentHashMap.newKeySet();	// 백그라운드로 Task 제출 시 한번만 제출하기 위함
 
 	public CacheService(
-		List<CacheManager> cacheManagers,
-		RedisLockService redisLockService,
-		@Qualifier("cacheRefreshExecutor") Executor cacheRefreshExecutor,
 		MeterRegistry meterRegistry,
-		CacheEvictPublisher cacheEvictPublisher
+		RedisLockService redisLockService,
+		List<CacheManager> cacheManagers,
+		CacheEvictPublisher cacheEvictPublisher,
+		@Qualifier("cacheRefreshExecutor") Executor cacheRefreshExecutor,
+		SingleFlightExecutor singleFlightExecutor
 	) {
+		this.meterRegistry = meterRegistry;
+		this.redisLockService = redisLockService;
 		this.cacheManagers = cacheManagers.stream()
 			.collect(Collectors.toUnmodifiableMap(CacheManager::getSupportedType, Function.identity()));
-		this.redisLockService = redisLockService;
-		this.cacheRefreshExecutor = cacheRefreshExecutor;
-		this.meterRegistry = meterRegistry;
 		this.cacheEvictPublisher = cacheEvictPublisher;
+		this.cacheRefreshExecutor = cacheRefreshExecutor;
+		this.singleFlightExecutor = singleFlightExecutor;
 	}
 
 	/**
-	 * 캐시 조회. 앞 계층이 미스면 뒤 계층으로, 마지막까지 미스면 DB로 내려갑니다.
+	 * 캐시 유형 별 조회 담당
 	 */
 	public <T> T getCacheWithPER(CacheGroup group, String key, Supplier<T> dbQuery) {
 
-		String cacheKey = getCacheKey(group, key);
+		String cacheKey = getCacheKey(group, key);	// 캐시 Key
+		CacheType cacheType = group.getCacheType();	// 캐시 유형 (Local or Global or Composite)
 
-		return switch (group.getCacheType()) {
-			case LOCAL -> unwrap(getFromLocal(group, cacheKey, dbQuery));
-			case GLOBAL -> unwrap(getFromGlobal(group, cacheKey, dbQuery));
-			case COMPOSITE -> unwrap(getFromComposite(group, cacheKey, dbQuery));
-		};
+		CacheResult<T> result;
+		if (cacheType == CacheType.LOCAL) {
+			result = getCacheFromLocal(group, cacheKey, dbQuery);	// 로컬 캐시인 경우
+		} else if (cacheType == CacheType.GLOBAL) {
+			result = getCacheFromGlobal(group, cacheKey, dbQuery);	// 글로벌 캐시인 경우
+		} else {
+			result = getCacheFromComposite(group, cacheKey, dbQuery);	// L1 + L2 캐시인 경우
+		}
+
+		recordCacheMetric(group, result.getMetricResult());	// hit, miss 메트릭 기록
+
+		CacheEntry<T> cacheEntry = result.getEntry();
+
+		return (cacheEntry != null) ? cacheEntry.getCachedData() : null;
 	}
 
 	/**
-	 * 캐시를 즉시 무효화합니다. 쓰는 계층을 모두 지우고, 로컬 캐시는 다른 인스턴스도 함께 버리도록 알립니다.
+	 * 로컬 <-> DB, PER + SingleFlight
 	 */
-	public void evict(CacheGroup group, String key) {
+	private <T> CacheResult<T> getCacheFromLocal(CacheGroup group, String cacheKey, Supplier<T> dbQuery) {
 
-		String cacheKey = getCacheKey(group, key);
-		CacheType cacheType = group.getCacheType();
+		// 로컬 캐시 매니저 획득
+		CacheManager cacheManager = getCacheManager(CacheType.LOCAL);
 
-		if (cacheType != CacheType.LOCAL) {
-			manager(CacheType.GLOBAL).evict(group, cacheKey);
+		// 캐시 획득 및 PER 계산을 위해 remainingTTL 획득
+		CacheEntry<T> cached = cacheManager.get(group, cacheKey);
+		Long remainingTTL = (cached != null) ? cacheManager.getExpire(group, cacheKey) : null;
+
+		// 1. Miss - singleFlight 활용하여 하나의 스레드만 DB 접근하도록
+		if (cached == null || remainingTTL == null || remainingTTL <= 0) {
+			CacheEntry<T> loaded = singleFlightExecutor.execute(
+				cacheKey,
+				() -> {
+					CacheEntry<T> refreshed = cacheManager.get(group, cacheKey);	// 캐시 더블 체크
+					if (refreshed != null) {
+						return refreshed;
+					}
+
+					CacheEntry<T> cacheEntry = loadFromDB(dbQuery);	// 직접 조회
+					saveIntoLocal(group, cacheKey, cacheEntry);
+
+					return cacheEntry;
+				}
+			);
+
+			return new CacheResult<>(loaded, CacheMetric.RESULT_MISS);
 		}
 
-		if (cacheType != CacheType.GLOBAL) {
-			manager(CacheType.LOCAL).evict(group, cacheKey);
-			cacheEvictPublisher.publish(group.getCacheName(), cacheKey);
-		}
-	}
-
-	/**
-	 * 로컬 히트면 Redis까지 가지 않고, 미스면 글로벌 캐시에서 받아온 값을 로컬에도 채워둡니다.
-	 */
-	private <T> CacheWrapper<T> getFromComposite(CacheGroup group, String cacheKey, Supplier<T> dbQuery) {
-
-		CacheManager local = manager(CacheType.LOCAL);
-
-		// 1. 로컬 히트 - 다음 계층으로 내려가지 않는다
-		CacheWrapper<T> localCached = local.get(group, cacheKey);
-		if (localCached != null) {
-			recordCacheResult(group, RESULT_LOCAL_HIT);
-			return localCached;
-		}
-
-		// 2. 로컬 미스 - 글로벌 캐시에서 가져온 값을 로컬에도 채워둔다
-		CacheWrapper<T> wrapper = getFromGlobal(group, cacheKey, dbQuery);
-		if (wrapper != null) {
-			local.set(group, cacheKey, wrapper);
-		}
-
-		return wrapper;
-	}
-
-	/**
-	 * PER 기반 로컬 캐시 조회.
-	 * 로컬 캐시만 쓰는 그룹은 미스하면 곧바로 DB로 내려가므로 글로벌과 동일하게 만료 직전 미리 갱신합니다.
-	 * 다만 로컬 캐시는 인스턴스끼리 공유하지 않아, 분산락으로 묶어봐야 갱신 결과를 나눠 가질 수 없습니다.
-	 */
-	private <T> CacheWrapper<T> getFromLocal(CacheGroup group, String cacheKey, Supplier<T> dbQuery) {
-
-		CacheManager local = manager(CacheType.LOCAL);
-		CacheWrapper<T> cached = local.get(group, cacheKey);
-
-		// 1. Miss - DB 조회
-		if (cached == null) {
-			log.debug("로컬 캐시 미스 - key: {}", cacheKey);
-			recordCacheResult(group, RESULT_MISS);
-			return refreshLocalCache(group, cacheKey, dbQuery);
-		}
-
-		Long remainingTTL = local.getExpire(group, cacheKey);
-		if (remainingTTL == null || remainingTTL <= 0) {
-			recordCacheResult(group, RESULT_MISS);
-			return refreshLocalCache(group, cacheKey, dbQuery);
-		}
-
-		recordCacheResult(group, RESULT_LOCAL_HIT);
-
-		// 2. Hit + PER o
-		if (isPerTriggered(cached.getTimeToCompute(), remainingTTL)) {
+		// 2. Hit + PER o - 갱신은 백그라운드로 위임 후, 아래 return cache;
+		if (shouldRecompute(cached.getTimeToCompute(), remainingTTL)) {
 			log.info("PER에 의해 백그라운드에서 로컬 캐시를 갱신합니다 - key: {}, remainingTTL: {}", cacheKey, remainingTTL);
-			submitRefreshTaskInBackground(cacheKey, () -> refreshLocalInBackground(group, cacheKey, dbQuery));
+			submitRefreshTaskInBackground(
+				cacheKey,
+				() -> {
+					CacheEntry<T> cacheEntry = loadFromDB(dbQuery);
+					saveIntoLocal(group, cacheKey, cacheEntry);
+				}
+			);
 		}
 
-		// 3. Hit + PER x
-		return cached;
+		// 3. Hit + PER x - return cache;
+		return new CacheResult<>(cached, CacheMetric.RESULT_LOCAL_HIT);
 	}
 
 	/**
-	 * PER 기반 글로벌 캐시 조회
+	 * 글로벌 <-> DB, PER + 분산락으로 스템피드 방어
 	 */
-	private <T> CacheWrapper<T> getFromGlobal(CacheGroup group, String cacheKey, Supplier<T> dbQuery) {
+	private <T> CacheResult<T> getCacheFromGlobal(CacheGroup group, String cacheKey, Supplier<T> dbQuery) {
 
-		CacheManager global = manager(CacheType.GLOBAL);
-		CacheWrapper<T> cached = global.get(group, cacheKey);
+		// 글로벌 캐시 매니저 획득
+		CacheManager cacheManager = getCacheManager(CacheType.GLOBAL);
 
-		// 1. Miss - DB 조회
-		if (cached == null) {
-			log.debug("캐시 미스 - key: {}", cacheKey);
-			recordCacheResult(group, RESULT_MISS);
-			return refreshWithLock(group, cacheKey, dbQuery);
+		// 캐시 획득 및 PER 계산을 위해 remainingTTL 획득
+		CacheEntry<T> cached = cacheManager.get(group, cacheKey);
+		Long remainingTTL = (cached != null) ? cacheManager.getExpire(group, cacheKey) : null;
+
+		// 1. Miss - 분산락으로 하나의 스레드만 DB 접근하도록 (더블 체크 안하면 다시 스템피드)
+		if (cached == null || remainingTTL == null || remainingTTL <= 0) {
+
+			boolean acquired = redisLockService.tryLock(cacheKey, LOCK_LEASE, LOCK_WAIT);
+
+			try {
+				// 락 상관 없이 캐시 한번 더 더블 체크
+				CacheEntry<T> refreshed = cacheManager.get(group, cacheKey);
+				if (refreshed != null) {
+					return new CacheResult<>(refreshed, CacheMetric.RESULT_MISS);
+				}
+
+				if (!acquired) {
+					log.warn("캐시 갱신 락 획득에 실패했지만 캐시가 비어 있어 DB로 조회합니다 - key: {}", cacheKey);
+				}
+
+				CacheEntry<T> cacheEntry = loadFromDB(dbQuery);
+				saveIntoGlobal(group, cacheKey, cacheEntry);
+
+				return new CacheResult<>(cacheEntry, CacheMetric.RESULT_MISS);
+			} finally {
+				if (acquired) {
+					redisLockService.releaseLock(cacheKey);
+				}
+			}
 		}
 
-		Long remainingTTL = global.getExpire(group, cacheKey);
-		if (remainingTTL == null || remainingTTL <= 0) {
-			recordCacheResult(group, RESULT_MISS);
-			return refreshWithLock(group, cacheKey, dbQuery);
+		// 2. Hit + PER o - Task는 인스턴스마다 제출되므로 분산락으로 하나만 DB에 보낸다
+		if (shouldRecompute(cached.getTimeToCompute(), remainingTTL)) {
+			log.info("PER에 의해 백그라운드에서 글로벌 캐시를 갱신합니다 - key: {}, remainingTTL: {}", cacheKey, remainingTTL);
+
+			submitRefreshTaskInBackground(cacheKey, () -> {
+				// 여러 EC2 간 Task 사이에서 하나만 DB 접근하도록 스템피드 방어
+				if (!redisLockService.tryLock(cacheKey, LOCK_LEASE)) {
+					return;
+				}
+				
+				try {
+					CacheEntry<T> cacheEntry = loadFromDB(dbQuery);	// DB 조회
+					saveIntoGlobal(group, cacheKey, cacheEntry);	// 글로벌 캐시 갱신
+				} finally {
+					redisLockService.releaseLock(cacheKey);
+				}
+			});
 		}
 
-		recordCacheResult(group, RESULT_GLOBAL_HIT);
-
-		// 2. Hit + PER o
-		if (isPerTriggered(cached.getTimeToCompute(), remainingTTL)) {
-			log.info("PER에 의해 백그라운드에서 캐시를 갱신합니다 - key: {}, remainingTTL: {}", cacheKey, remainingTTL);
-			submitRefreshTaskInBackground(cacheKey, () -> refreshGlobalInBackground(group, cacheKey, dbQuery));	// 갱신 위임
-		}
-
-		// 3. Hit + PER x
-		return cached;
+		// 3. Hit + PER x - return cache;
+		return new CacheResult<>(cached, CacheMetric.RESULT_GLOBAL_HIT);
 	}
 
 	/**
-	 * 락 기반 스템피드 방어 + 락 얻고 나서도 더블 체크
+	 * 로컬 캐시 <-> 글로벌 캐시 <-> DB,
+	 * 		로컬 -> 글로벌은 SingleFlight로 하나의 스레드만 레디스 조회하도록 방어
+	 * 		글로벌 -> DB는 분산락으로 방어
 	 */
-	private <T> CacheWrapper<T> refreshWithLock(CacheGroup group, String cacheKey, Supplier<T> dbQuery) {
+	private <T> CacheResult<T> getCacheFromComposite(CacheGroup group, String cacheKey, Supplier<T> dbQuery) {
 
-		CacheManager global = manager(CacheType.GLOBAL);
-		boolean acquired = false;
+		// 로컬 캐시 매니저 획득
+		CacheManager localCacheManager = getCacheManager(CacheType.LOCAL);
 
-		try {
-			acquired = redisLockService.tryLock(cacheKey, LOCK_LEASE, LOCK_WAIT);
-
-			// 1. 앞선 리더가 갱신해놓음 - 한번 더 캐시 더블 체크
-			CacheWrapper<T> cached = global.get(group, cacheKey);
-			if (cached != null) {
-				return cached;
-			}
-
-			// 2. 락 획득 실패 - 다시 캐시 조회하도록 fallback
-			if (!acquired) {
-				log.warn("캐시 갱신 락 획득에 실패해 다시 캐시를 조회합니다 - key: {}", cacheKey);
-				return getFromGlobal(group, cacheKey, dbQuery);
-			}
-
-			// 3. DB 조회
-			return refreshGlobalCache(group, cacheKey, dbQuery);
-		} finally {
-			if (acquired) {
-				redisLockService.releaseLock(cacheKey);
-			}
+		// 1. 로컬 Hit
+		CacheEntry<T> localCacheEntry = localCacheManager.get(group, cacheKey);
+		if (localCacheEntry != null) {
+			return new CacheResult<>(localCacheEntry, CacheMetric.RESULT_LOCAL_HIT);
 		}
+
+		// 2. 로컬 Miss - 글로벌 캐시에서 가져온다
+		// 		인스턴스 레벨에서는 singleFlight로 글로벌 캐시에 대한 스템피드 방어
+		// 		글로벌 -> DB는 분산락으로 스템피드 방어
+		return singleFlightExecutor.execute(cacheKey, () -> {
+
+			// 더블 체크
+			CacheEntry<T> refreshCacheEntry = localCacheManager.get(group, cacheKey);
+			if (refreshCacheEntry != null) {
+				return new CacheResult<>(refreshCacheEntry, CacheMetric.RESULT_MISS);
+			}
+
+			// singleFlight로 하나만 글로벌 캐시에 접근하여 로컬에 동기화
+			CacheResult<T> result = getCacheFromGlobal(group, cacheKey, dbQuery);
+			saveIntoLocal(group, cacheKey, result.getEntry());
+
+			return result;
+		});
 	}
 
 	/**
-	 * 백그라운드 갱신 Task를 스레드 풀에 제출합니다.
-	 * JVM 레벨에서 동일한 Cache Key가 이미 제출되었으면, 풀로 제출하지 않습니다.
-	 * 		-> 불필요한 중복 Task 요청으로 인한 포화를 막기 위함
-	 *		-> EC2 당 하나의 Task만 제출됨
-	 *		-> EC2 여러 대면 글로벌 락으로 하나만 DB 접근하도록 2차적으로 막아야 할듯
+	 * 캐시 refresh Task를 비동기적으로 백그라운드에서 처리합니다.
+	 * putIfAbsent로 같은 키가 이미 제출되어 있으면 제출하지 않아 불필요한 제출을 막습니다.
 	 */
 	private void submitRefreshTaskInBackground(String cacheKey, Runnable refreshTask) {
 
-		// putIfAbsent
+		// putIfAbsent (JVM 레벨에서 백그라운드 갱신 Task는 Key당 하나만 제출되도록, 락 블로깅 없이 처리)
 		if (!inFlightKeys.add(cacheKey)) {
 			return;
 		}
@@ -268,106 +272,71 @@ public class CacheService {
 			cacheRefreshExecutor.execute(() -> {
 				try {
 					refreshTask.run();
+				} catch (Exception e) {
+					log.warn("백그라운드 캐시 갱신에 실패했습니다 - key: {}", cacheKey, e);
 				} finally {
-					inFlightKeys.remove(cacheKey);	// 작업 완료 후 제거
+					inFlightKeys.remove(cacheKey);
 				}
 			});
-		} catch (RejectedExecutionException e) {
-			inFlightKeys.remove(cacheKey);	// 예외 시에도 제거
-		}
-	}
-
-	/**
-	 * 백그라운드에서 DB를 조회하여 글로벌 캐시를 갱신합니다.
-	 */
-	private <T> void refreshGlobalInBackground(CacheGroup group, String cacheKey, Supplier<T> dbQuery) {
-
-		boolean acquired = false;
-
-		// 여기서 글로벌 락은 왜? -> JVM 레벨에서의 Task 중복 제출은 막음, 그러나 EC2는 여러 대라 Task는 EC2 대수만큼 제출되므르 하나만 DB 접근할 수 있도록 하기 위함
-		try {
-			acquired = redisLockService.tryLock(cacheKey, LOCK_LEASE);
-			if (acquired) {
-				refreshGlobalCache(group, cacheKey, dbQuery);
-			}
 		} catch (Exception e) {
-			log.warn("백그라운드 캐시 갱신에 실패했습니다 - key: {}", cacheKey, e);
-		} finally {
-			if (acquired) {
-				redisLockService.releaseLock(cacheKey);
-			}
+			inFlightKeys.remove(cacheKey);
 		}
 	}
 
 	/**
-	 * 백그라운드에서 DB를 조회하여 로컬 캐시를 갱신합니다.
-	 * 인스턴스마다 자기 캐시를 따로 채워야 하므로 분산락을 걸지 않습니다.
+	 * DB에서 조회한 엔트리를 넘겨받아 로컬 캐시에 저장합니다.
 	 */
-	private <T> void refreshLocalInBackground(CacheGroup group, String cacheKey, Supplier<T> dbQuery) {
-
-		try {
-			refreshLocalCache(group, cacheKey, dbQuery);
-		} catch (Exception e) {
-			log.warn("백그라운드 로컬 캐시 갱신에 실패했습니다 - key: {}", cacheKey, e);
+	private <T> void saveIntoLocal(CacheGroup group, String cacheKey, CacheEntry<T> cacheEntry) {
+		if (cacheEntry == null) {
+			return;
 		}
+
+		// 로컬 개시 갱신
+		CacheManager cacheManager = getCacheManager(CacheType.LOCAL);
+		cacheManager.set(group, cacheKey, cacheEntry);
 	}
 
 	/**
-	 * DB에서 값을 조회해 로컬 캐시에 저장합니다.
+	 * DB에서 조회한 엔트리를 넘겨받아 글로벌 캐시에 저장합니다.
+	 * COMPOSITE 캐시인 경우 pub/sub으로 로컬 캐시 무효화를 발행합니다.
 	 */
-	private <T> CacheWrapper<T> refreshLocalCache(CacheGroup group, String cacheKey, Supplier<T> dbQuery) {
-
-		CacheWrapper<T> wrapper = loadFromDb(dbQuery);
-		if (wrapper == null) {
-			return null;
+	private <T> void saveIntoGlobal(CacheGroup group, String cacheKey, CacheEntry<T> cacheEntry) {
+		if (cacheEntry == null) {
+			return;
 		}
 
-		manager(CacheType.LOCAL).set(group, cacheKey, wrapper);
+		// 글로벌 캐시 갱신
+		CacheManager cacheManager = getCacheManager(CacheType.GLOBAL);
+		cacheManager.set(group, cacheKey, cacheEntry);
 
-		return wrapper;
-	}
-
-	/**
-	 * DB에서 값을 조회해 글로벌 캐시에 저장합니다.
-	 */
-	private <T> CacheWrapper<T> refreshGlobalCache(CacheGroup group, String cacheKey, Supplier<T> dbQuery) {
-
-		CacheWrapper<T> wrapper = loadFromDb(dbQuery);
-		if (wrapper == null) {
-			return null;
-		}
-
-		manager(CacheType.GLOBAL).set(group, cacheKey, wrapper);
-
-		// 글로벌 캐시가 새 값으로 바뀌었으므로, 다른 인스턴스가 들고 있는 로컬 캐시는 버리게 한다
+		// L1 + L2 캐시이면, 로컬 캐시에 무효화 pub/sub
 		if (group.getCacheType() == CacheType.COMPOSITE) {
+			CacheManager localCacheManager = getCacheManager(CacheType.LOCAL);
+			localCacheManager.set(group, cacheKey, cacheEntry);
 			cacheEvictPublisher.publish(group.getCacheName(), cacheKey);
 		}
-
-		return wrapper;
 	}
 
 	/**
-	 * DB 조회에 걸린 시간을 함께 담아 래핑합니다. PER의 timeToCompute로 쓰입니다.
+	 * DB에서 조회 및 PER에 필요한 timeToCompute도 계산하여 CacheEntry 반환
 	 */
-	private <T> CacheWrapper<T> loadFromDb(Supplier<T> dbQuery) {
-
+	private <T> CacheEntry<T> loadFromDB(Supplier<T> dbQuery) {
 		long startMs = System.currentTimeMillis();
 		T newValue = dbQuery.get();
-		long elapsedMs = System.currentTimeMillis() - startMs;
+		long endMs = System.currentTimeMillis();
+		long elapsedMs = endMs - startMs;
 
 		if (newValue == null) {
 			return null;
 		}
 
-		return new CacheWrapper<>(newValue, Math.max(elapsedMs, 1L));
+		return new CacheEntry<>(newValue, elapsedMs);
 	}
 
 	/**
-	 * timeToCompute * beta * -log(rand()) > remainingTTL 이면 미리 갱신합니다.
+	 * timeToCompute * beta * -log(rand()) > remainingTTL 이면 갱신 채택
 	 */
-	private boolean isPerTriggered(long timeToCompute, long remainingTTL) {
-
+	private boolean shouldRecompute(long timeToCompute, long remainingTTL) {
 		double randomGap = ThreadLocalRandom.current().nextDouble();
 		if (randomGap == 0.0) randomGap = 0.000001;
 		double gapScore = timeToCompute * BETA * -Math.log(randomGap);
@@ -375,32 +344,27 @@ public class CacheService {
 		return gapScore > remainingTTL;
 	}
 
-	private CacheManager manager(CacheType cacheType) {
-
+	/**
+	 * 캐시 유형에 맞는 캐시 매니저 획득
+	 */
+	private CacheManager getCacheManager(CacheType cacheType) {
 		CacheManager cacheManager = cacheManagers.get(cacheType);
 		if (cacheManager == null) {
-			throw new IllegalStateException("등록되지 않은 캐시 계층입니다. cacheType=" + cacheType);
+			log.error("등록되지 않은 캐시 계층입니다 - cacheType: {}", cacheType);
+			throw new GeneralException(CacheErrorCode.CACHE_MANAGER_NOT_FOUND);
 		}
-
 		return cacheManager;
-	}
-
-	private <T> T unwrap(CacheWrapper<T> wrapper) {
-		return wrapper != null ? wrapper.getCachedData() : null;
 	}
 
 	private String getCacheKey(CacheGroup group, String key) {
 		return CACHE_PREFIX + group.getCacheName() + ":" + key;
 	}
 
-	/**
-	 * 캐시 그룹별 조회 결과(local_hit/global_hit/miss)를 집계합니다.
-	 */
-	private void recordCacheResult(CacheGroup group, String result) {
+	private void recordCacheMetric(CacheGroup group, String result) {
 		meterRegistry.counter(
-			CACHE_GETS_METRIC,
-			TAG_GROUP, group.getCacheName(),
-			TAG_RESULT, result
+			CacheMetric.CACHE_GETS_METRIC,
+			CacheMetric.TAG_GROUP, group.getCacheName(),
+			CacheMetric.TAG_RESULT, result
 		).increment();
 	}
 }

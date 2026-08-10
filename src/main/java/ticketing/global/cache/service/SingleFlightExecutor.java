@@ -1,6 +1,7 @@
 package ticketing.global.cache.service;
 
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 
@@ -17,6 +18,9 @@ public class SingleFlightExecutor {
 
 	private final ConcurrentHashMap<String, CompletableFuture<?>> inFlightRequests = new ConcurrentHashMap<>();
 
+	/**
+	 * 리더가 어떤 행동을 하면 되는지 전달하면 된다. 캐시 목적으로 싱글플라이트 이걸 쓰면 '더블체크 + 실제 DB 접근' 로직?
+	 */
 	public <V> V execute(String key, Supplier<V> supplier) {
 
 		while (true) {
@@ -26,8 +30,11 @@ public class SingleFlightExecutor {
 			// 1. 이미 누군가 처리 중이면 리더에 합류
 			if (existing != null) {
 				try {
-					return existing.join();
-				} catch (Exception e) {
+					return existing.join();	 // 스레드 WAITING
+				} catch (CompletionException e) {
+					if (e.getCause() instanceof RuntimeException cause) {
+						throw cause;
+					}
 					throw e;
 				}
 			}
