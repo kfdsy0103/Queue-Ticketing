@@ -9,6 +9,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
+import org.springframework.data.redis.listener.ChannelTopic;
+import org.springframework.data.redis.listener.RedisMessageListenerContainer;
 import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
@@ -20,6 +22,8 @@ import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
 import lombok.RequiredArgsConstructor;
+import ticketing.global.cache.eviction.CacheChannel;
+import ticketing.global.cache.eviction.CacheEvictSubscriber;
 
 @Configuration
 @RequiredArgsConstructor
@@ -45,6 +49,17 @@ public class RedisConfig {
 	@Bean
 	public RedisConnectionFactory redisConnectionFactory(RedissonClient redissonClient) {
 		return new RedissonConnectionFactory(redissonClient);
+	}
+
+	@Bean
+	public RedisMessageListenerContainer redisMessageListenerContainer(
+		RedisConnectionFactory redisConnectionFactory,
+		CacheEvictSubscriber cacheEvictSubscriber
+	) {
+		RedisMessageListenerContainer container = new RedisMessageListenerContainer();
+		container.setConnectionFactory(redisConnectionFactory);
+		container.addMessageListener(cacheEvictSubscriber, new ChannelTopic(CacheChannel.CACHE_EVICT));
+		return container;
 	}
 
 	@Bean

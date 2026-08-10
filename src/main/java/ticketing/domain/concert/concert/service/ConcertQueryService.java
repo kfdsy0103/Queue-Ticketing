@@ -10,8 +10,8 @@ import ticketing.domain.concert.concert.dto.FindDTO;
 import ticketing.domain.concert.concert.exception.ConcertErrorCode;
 import ticketing.domain.concert.concert.repository.ConcertRepository;
 import ticketing.global.apiPayload.exception.GeneralException;
-import ticketing.global.enums.CacheGroup;
-import ticketing.global.util.CacheService;
+import ticketing.global.cache.service.CacheService;
+import ticketing.global.cache.enums.CacheGroup;
 
 @Slf4j
 @Service

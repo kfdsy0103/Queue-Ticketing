@@ -10,10 +10,10 @@ public class JitterUtil {
 	private JitterUtil() {}
 
 	/**
-	 * TTL 10% 범위의 지터를 적용합니다.
+	 * 10% 범위의 지터를 적용합니다.
 	 */
-	public static Duration applyJitter(Duration ttl) {
-		long baseMillis = ttl.toMillis();
+	public static Duration applyJitter(Duration time) {
+		long baseMillis = time.toMillis();
 		long jitterRange = (long) (baseMillis * JITTER_RATIO);
 		long jitterMillis = ThreadLocalRandom.current().nextLong(-jitterRange, jitterRange + 1);
 		return Duration.ofMillis(baseMillis + jitterMillis);

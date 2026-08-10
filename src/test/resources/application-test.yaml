@@ -1,0 +1,23 @@
+# Redis는 testContainer에서 동적 주입
+spring:
+  datasource:
+    master:
+      jdbc-url: jdbc:h2:mem:ticketing;MODE=MySQL;DB_CLOSE_DELAY=-1
+      username: sa
+      password: ""
+      driver-class-name: org.h2.Driver
+      pool-name: master-pool
+    slave:
+      jdbc-url: jdbc:h2:mem:ticketing;MODE=MySQL;DB_CLOSE_DELAY=-1
+      username: sa
+      password: ""
+      driver-class-name: org.h2.Driver
+      pool-name: slave-pool
+  jpa:
+    hibernate:
+      ddl-auto: create-drop
+    show-sql: false
+    open-in-view: false
+  jwt:
+    secret: large-ticketing-jwt-secret-key-for-test-only-do-not-use
+    expiration: 1800000

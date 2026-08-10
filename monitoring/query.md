@@ -4,6 +4,7 @@
 - CPU: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle", instance="$node"}[$__rate_interval])) * 100)
 - Memory: (1 - (node_memory_MemAvailable_bytes{instance="$node"} / node_memory_MemTotal_bytes{instance="$node"})) * 100
 - GC 평균 Paused Time: sum by(action, cause) (rate(jvm_gc_pause_seconds_sum{instance="$instance", application="$application", namespace="$Namespace"}[$__rate_interval])) / sum by(action, cause) (rate(jvm_gc_pause_seconds_count{instance="$instance", application="$application", namespace="$Namespace"}[$__rate_interval]))
+- GC Count: sum by(action, cause) (rate(jvm_gc_pause_seconds_count{instance="$instance", application="$application"}[$__rate_interval]))
 
 ## 2. Mysql Exporter + CloudWatch Exporter 사용하여 RDS의 CPU 및 Memory 추출 (스크랩하려는 리소스에 태그를 하나 이상 부여해야 식별됨에 유의)
 - TPS: rate(mysql_global_status_commands_total{command="commit"}[1m])
@@ -52,5 +53,7 @@ query...
 - {service="ticketing-api", level="WARN"}
 - {service="ticketing-api", level="ERROR"}
 
-## 7. 캐시 히트율 (PER Beta 튜닝 목적)
-- 그룹별 히트율: sum(rate(ticketing_cache_gets_total{result="hit"}[$__rate_interval])) by (group) / sum(rate(ticketing_cache_gets_total[$__rate_interval])) by (group)
+## 7. 캐시 히트율
+- 그룹별 전체 히트율: sum(rate(ticketing_cache_gets_total{result=~"global_hit|local_hit"}[$__rate_interval])) by (group) / sum(rate(ticketing_cache_gets_total[$__rate_interval])) by (group)
+- 그룹별 글로벌 히트율: sum(rate(ticketing_cache_gets_total{result="global_hit"}[$__rate_interval])) by (group) / sum(rate(ticketing_cache_gets_total[$__rate_interval])) by (group)
+- 그룹별 로컬 히트율: sum(rate(ticketing_cache_gets_total{result="local_hit"}[$__rate_interval])) by (group) / sum(rate(ticketing_cache_gets_total[$__rate_interval])) by (group)
