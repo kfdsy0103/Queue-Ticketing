@@ -2,6 +2,9 @@ package ticketing.domain.order.order.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -14,6 +17,7 @@ import ticketing.domain.concert.scheduleprice.entity.SchedulePrice;
 import ticketing.domain.concert.scheduleprice.exception.SchedulePriceErrorCode;
 import ticketing.domain.concert.scheduleprice.repository.SchedulePriceRepository;
 import ticketing.domain.concert.scheduleseat.constants.ScheduleSeatRedisKeys;
+import ticketing.domain.concert.scheduleseat.dto.FindMyOccupyDTO;
 import ticketing.domain.concert.scheduleseat.entity.ScheduleSeat;
 import ticketing.domain.concert.scheduleseat.exception.ScheduleSeatErrorCode;
 import ticketing.domain.concert.scheduleseat.repository.ScheduleSeatRepository;
@@ -62,7 +66,7 @@ public class OrderCommandService {
 			.orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
 
 		// 좌석 수 일치 확인
-		List<ScheduleSeat> scheduleSeats = scheduleSeatRepository.findAllById(command.getScheduleSeatIds());
+		List<ScheduleSeat> scheduleSeats = scheduleSeatRepository.findAllByIdInWithScheduleAndSeatGrade(command.getScheduleSeatIds());
 		if (scheduleSeats.size() != command.getScheduleSeatIds().size()) {
 			throw new GeneralException(ScheduleSeatErrorCode.SCHEDULE_SEAT_NOT_FOUND);
 		}
@@ -90,17 +94,33 @@ public class OrderCommandService {
 			throw new GeneralException(ScheduleSeatErrorCode.NOT_OCCUPIED_BY_USER);
 		}
 
-		// 좌석별 가격 조회 및 totalPrice 누적
-		List<SchedulePrice> schedulePrices = scheduleSeats.stream()
-			.map(scheduleSeat -> schedulePriceRepository.findByConcertScheduleIdAndSeatGradeId(
+		// <회차, 등급> -> 가격 Mapping
+		Set<Long> concertScheduleIds = scheduleSeats.stream()
+			.map(scheduleSeat -> scheduleSeat.getConcertSchedule().getId())
+			.collect(Collectors.toSet());
+
+		Map<FindMyOccupyDTO.SchedulePriceKey, Integer> priceByScheduleAndGrade = schedulePriceRepository.findAllByConcertScheduleIdIn(concertScheduleIds).stream()
+			.collect(Collectors.toMap(
+				schedulePrice -> FindMyOccupyDTO.SchedulePriceKey.of(
+					schedulePrice.getConcertSchedule().getId(),
+					schedulePrice.getSeatGrade().getId()
+				),
+				SchedulePrice::getPrice
+			));
+
+		// 좌석별 가격은 Map에서 획득하여 totalPrice 누적
+		List<Integer> seatPrices = scheduleSeats.stream()
+			.map(scheduleSeat -> {
+				Integer price = priceByScheduleAndGrade.get(FindMyOccupyDTO.SchedulePriceKey.of(
 					scheduleSeat.getConcertSchedule().getId(),
-					scheduleSeat.getSeat().getSeatGrade().getId())
-					.orElseThrow(() -> new GeneralException(SchedulePriceErrorCode.SCHEDULE_PRICE_NOT_FOUND))
-			)
+					scheduleSeat.getSeat().getSeatGrade().getId()
+				));
+				return price;
+			})
 			.toList();
 
-		int totalPrice = schedulePrices.stream()
-			.mapToInt(SchedulePrice::getPrice)
+		int totalPrice = seatPrices.stream()
+			.mapToInt(Integer::intValue)
 			.sum();
 
 		// Order 생성
@@ -117,7 +137,7 @@ public class OrderCommandService {
 			OrderItem orderItem = OrderItem.builder()
 				.order(order)
 				.scheduleSeat(scheduleSeats.get(i))
-				.price(schedulePrices.get(i).getPrice())
+				.price(seatPrices.get(i))
 				.status(OrderItem.Status.PENDING)
 				.build();
 			orderItems.add(orderItem);
