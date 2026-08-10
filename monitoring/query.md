@@ -47,6 +47,8 @@ query...
 ## 5. K6
 - 커스텀 Trend p99: {__name__=~"k6_(enter|status|seats|occupy|order|confirm|concerts|concert|concert_schedules|concert_schedule|remaining_seats|my_occupy)_duration_p99"}
 - 전체 p99: avg(k6_http_req_duration_p99)
+- 커스텀 Trend p95: {__name__=~"k6_(enter|status|seats|occupy|order|confirm|concerts|concert|concert_schedules|concert_schedule|remaining_seats|my_occupy)_duration_p95"}
+- 전체 p95: avg(k6_http_req_duration_p95)
 
 ## 6. 로그
 - {service="ticketing-api", level="INFO"}
