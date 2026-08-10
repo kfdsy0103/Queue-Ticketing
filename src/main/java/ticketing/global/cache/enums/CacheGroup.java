@@ -12,14 +12,14 @@ public enum CacheGroup {
 
 	CONCERT_DETAIL(
 		CacheName.CONCERT_DETAIL,
-		CacheType.COMPOSITE,
+		CacheType.GLOBAL,
 		Duration.ofMinutes(1),
 		Duration.ofSeconds(10),
 		1000L
 	),
 	CONCERT_SCHEDULE_DETAIL(
 		CacheName.CONCERT_SCHEDULE_DETAIL,
-		CacheType.COMPOSITE,
+		CacheType.GLOBAL,
 		Duration.ofMinutes(1),
 		Duration.ofSeconds(10),
 		1000L
