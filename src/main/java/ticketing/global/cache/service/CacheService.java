@@ -126,22 +126,21 @@ public class CacheService {
 
 		// 1. Miss - singleFlight 활용하여 하나의 스레드만 DB 접근하도록
 		if (cached == null || remainingTTL == null || remainingTTL <= 0) {
-			CacheEntry<T> loaded = singleFlightExecutor.execute(
+			return singleFlightExecutor.execute(
 				cacheKey,
 				() -> {
 					CacheEntry<T> refreshed = cacheManager.get(group, cacheKey);	// 캐시 더블 체크
 					if (refreshed != null) {
-						return refreshed;
+						// 더블 체크에서 걸렸다면 DB까지 가지 않고 캐시로 응답한 것이므로 Hit으로 집계한다
+						return new CacheResult<>(refreshed, CacheMetric.RESULT_LOCAL_HIT);
 					}
 
 					CacheEntry<T> cacheEntry = loadFromDB(dbQuery);	// 직접 조회
 					saveIntoLocal(group, cacheKey, cacheEntry);
 
-					return cacheEntry;
+					return new CacheResult<>(cacheEntry, CacheMetric.RESULT_MISS);
 				}
 			);
-
-			return new CacheResult<>(loaded, CacheMetric.RESULT_MISS);
 		}
 
 		// 2. Hit + PER o - 갱신은 백그라운드로 위임 후, 아래 return cache;
@@ -181,7 +180,8 @@ public class CacheService {
 				// 락 상관 없이 캐시 한번 더 더블 체크
 				CacheEntry<T> refreshed = cacheManager.get(group, cacheKey);
 				if (refreshed != null) {
-					return new CacheResult<>(refreshed, CacheMetric.RESULT_MISS);
+					// 더블 체크에서 걸렸다면 DB까지 가지 않고 캐시로 응답한 것이므로 Hit으로 집계한다
+					return new CacheResult<>(refreshed, CacheMetric.RESULT_GLOBAL_HIT);
 				}
 
 				if (!acquired) {
@@ -246,7 +246,8 @@ public class CacheService {
 			// 더블 체크
 			CacheEntry<T> refreshCacheEntry = localCacheManager.get(group, cacheKey);
 			if (refreshCacheEntry != null) {
-				return new CacheResult<>(refreshCacheEntry, CacheMetric.RESULT_MISS);
+				// 더블 체크에서 걸렸다면 글로벌까지 가지 않고 로컬 캐시로 응답한 것이므로 Hit으로 집계한다
+				return new CacheResult<>(refreshCacheEntry, CacheMetric.RESULT_LOCAL_HIT);
 			}
 
 			// singleFlight로 하나만 글로벌 캐시에 접근하여 로컬에 동기화
