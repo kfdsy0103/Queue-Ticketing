@@ -18,8 +18,15 @@ COMPOSE_VERSION="v2.39.1"
 # ── 1. Docker, Compose 플러그인, aws CLI 설치 (AMI에 이미 있으면 건너뜀)
 export DEBIAN_FRONTEND=noninteractive
 
-# 부팅 직후 unattended-upgrades가 dpkg 락을 잡고 있을 수 있어 대기 시간을 준다
-apt-get -o DPkg::Lock::Timeout=180 update
+apt-get -o DPkg::Lock::Timeout=180 update 2>&1 | tee /tmp/apt-update.log
+
+# apt-get update 실패 에러
+if grep -q '^Err:' /tmp/apt-update.log; then
+    echo "[userdata] apt update failed." >&2
+    grep '^Err:' /tmp/apt-update.log >&2
+    exit 1
+fi
+
 apt-get -o DPkg::Lock::Timeout=180 install -y docker.io unzip
 systemctl enable --now docker
 
