@@ -4,7 +4,6 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ThreadLocalRandom;
 
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -23,6 +22,7 @@ import ticketing.domain.user.exception.UserErrorCode;
 import ticketing.domain.user.repository.UserRepository;
 import ticketing.global.apiPayload.code.GeneralErrorCode;
 import ticketing.global.apiPayload.exception.GeneralException;
+import ticketing.global.util.JitterUtil;
 import ticketing.global.util.JwtTokenUtil;
 import ticketing.global.util.RedisUtil;
 
@@ -36,6 +36,7 @@ public class QueueService {
 	private static final Duration SESSION_TTL = Duration.ofMinutes(3);
 	private static final Duration ACTIVE_TTL = Duration.ofMinutes(7);
 	private static final long PROMOTION_BATCH_SIZE = 100;
+	private static final long JITTER_FREE_POSITION = 100;
 	private static final RedisScript<Long> PROMOTE_SCRIPT =
 		RedisScript.of(new ClassPathResource("luaScripts/promote-queue.lua"), Long.class);
 
@@ -228,26 +229,19 @@ public class QueueService {
 	 * 곧 입장할 유저는 짧은 주기로 체감을 개선하고, 뒤쪽 유저는 긴 주기로 서버 부하를 억제합니다.
 	 */
 	private long nextPollIntervalMillis(long position) {
-		int interval = getInterval(position);
-		int jitter = getJitter(position);
-		return interval + ThreadLocalRandom.current().nextInt(-jitter, jitter + 1);
+		Duration interval = getInterval(position);
+		if (position <= JITTER_FREE_POSITION) {
+			return interval.toMillis();
+		}
+		return JitterUtil.applyJitter(interval).toMillis();
 	}
 
-	// position 기준 Polling 주기 (ms)
-	private int getInterval(long position) {
-		if (position <= 100) return 1000;      // 곧 입장 — 1초
-		if (position <= 1000) return 2000;     // 2초
-		if (position <= 10000) return 5000;    // 5초
-		if (position <= 100000) return 10000;  // 10초
-		return 30000;                          // 9.5분+ 대기 — 30초
-	}
-
-	// Jitter 범위 (ms) — 동시 Polling 분산
-	private int getJitter(long position) {
-		if (position <= 100) return 0;         // 곧 입장은 Jitter 없음
-		if (position <= 1000) return 300;
-		if (position <= 10000) return 500;
-		if (position <= 100000) return 1000;
-		return 4000;
+	// position 기준 Polling 주기
+	private Duration getInterval(long position) {
+		if (position <= JITTER_FREE_POSITION) return Duration.ofSeconds(1);  // 곧 입장 — 1초
+		if (position <= 1000) return Duration.ofSeconds(2);
+		if (position <= 10000) return Duration.ofSeconds(5);
+		if (position <= 100000) return Duration.ofSeconds(10);
+		return Duration.ofSeconds(30);                                       // 9.5분+ 대기 — 30초
 	}
 }
