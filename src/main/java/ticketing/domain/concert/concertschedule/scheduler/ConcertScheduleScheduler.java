@@ -12,11 +12,11 @@ import org.springframework.stereotype.Component;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import ticketing.domain.concert.concert.service.ConcertQueryService;
 import ticketing.domain.concert.concertschedule.entity.ConcertSchedule;
 import ticketing.domain.concert.concertschedule.repository.ConcertScheduleRepository;
 import ticketing.domain.concert.concertschedule.service.ConcertScheduleQueryService;
+import ticketing.global.cache.warmup.CacheWarmUpState;
 
 @Slf4j
 @Component
@@ -25,9 +25,10 @@ public class ConcertScheduleScheduler {
 
 	// 워밍업을 시작할 시간대 설정, 10분 전부터 워밍업하도록 설정
 	private static final Duration WARMUP_BEFORE_OPEN = Duration.ofMinutes(10);
-	// 10분 전부터 30초 마다 워밍업 조회 시도
-	private static final long WARMUP_INTERVAL_MS = 30000L;
+	// 10분 전부터 10초 마다 워밍업 조회 시도
+	private static final long WARMUP_INTERVAL_MS = 10000;
 
+	private final CacheWarmUpState cacheWarmUpState;
 	private final ConcertScheduleRepository concertScheduleRepository;
 	private final ConcertScheduleQueryService concertScheduleQueryService;
 	private final ConcertQueryService concertQueryService;
@@ -38,7 +39,6 @@ public class ConcertScheduleScheduler {
 	 */
 	@Async("schedulerTaskExecutor")
 	@Scheduled(fixedDelay = WARMUP_INTERVAL_MS)
-	@SchedulerLock(name = "concertCacheWarmUpScheduler", lockAtLeastFor = "PT10S", lockAtMostFor = "PT1M")
 	public void warmUpConcertScheduleCaches() {
 
 		LocalDateTime now = LocalDateTime.now();
@@ -75,5 +75,7 @@ public class ConcertScheduleScheduler {
 				concertIds.size()
 			);
 		}
+
+		cacheWarmUpState.warmUp();
 	}
 }
