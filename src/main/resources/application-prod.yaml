@@ -15,7 +15,7 @@ spring:
       password: ${DB_PASSWORD}
       driver-class-name: com.mysql.cj.jdbc.Driver
       pool-name: master-pool
-      maximum-pool-size: 3  # LB 인스턴스 수 고려, 10에서 CPU 100% + useTime 및 acquireTime 병목 관측, 5에서 절반가량 개선
+      maximum-pool-size: 5  # LB 인스턴스 수 고려
     slave:
       jdbc-url: jdbc:mysql://${DB_SLAVE_URL}?rewriteBatchedStatements=true&useServerPrepStmts=false
       username: ${DB_USERNAME}
