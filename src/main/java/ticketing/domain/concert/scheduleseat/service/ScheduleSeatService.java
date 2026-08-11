@@ -79,13 +79,16 @@ public class ScheduleSeatService {
 			throw new GeneralException(GeneralErrorCode.FORBIDDEN);
 		}
 
-		// 유저가 해당 회차의 대기열을 통과(Active)했고, 최신 화면(sessionId)의 요청인지 확인
+		// 콘서트 회차 PK
 		Long concertScheduleId = scheduleSeats.getFirst().getConcertSchedule().getId();
-		String activeKey = QueueRedisKeys.activeKey(concertScheduleId, command.getUserId());
-		String storedSessionId = redisUtil.get(activeKey);
+
+		// 유저가 해당 회차의 대기열을 통과(Active)했는지 확인
+		String storedSessionId = redisUtil.get(QueueRedisKeys.activeKey(concertScheduleId, command.getUserId()));
 		if (storedSessionId == null) {
 			throw new GeneralException(QueueErrorCode.NOT_ACTIVE);
 		}
+
+		// 동일한 sessionId의 요청인지 확인
 		String queueSessionId = jwtTokenUtil.getClaim(command.getToken(), "queueSessionId", String.class);
 		if (!queueSessionId.equals(storedSessionId)) {
 			throw new GeneralException(QueueErrorCode.SESSION_REVOKED);	// 다른 화면에서 예매를 이어받은 경우 (이 화면은 종료)
@@ -141,24 +144,29 @@ public class ScheduleSeatService {
 			throw new GeneralException(GeneralErrorCode.FORBIDDEN);
 		}
 
-		// 유저가 해당 회차의 대기열을 통과(Active)했고, 최신 화면(sessionId)의 요청인지 확인
-		String storedSessionId = redisUtil.get(QueueRedisKeys.activeKey(command.getConcertScheduleId(), command.getUserId()));
+		// 콘서트 회차 PK
+		Long concertScheduleId = command.getConcertScheduleId();
+
+		// 유저가 해당 회차의 대기열을 통과(Active)했는지 확인
+		String storedSessionId = redisUtil.get(QueueRedisKeys.activeKey(concertScheduleId, command.getUserId()));
 		if (storedSessionId == null) {
 			throw new GeneralException(QueueErrorCode.NOT_ACTIVE);
 		}
+
+		// 동일한 sessionId의 요청인지 확인
 		String queueSessionId = jwtTokenUtil.getClaim(command.getToken(), "queueSessionId", String.class);
 		if (!queueSessionId.equals(storedSessionId)) {
 			throw new GeneralException(QueueErrorCode.SESSION_REVOKED);	// 다른 화면에서 예매를 이어받은 경우 (이 화면은 종료)
 		}
 
 		// 필요 컬럼만 프로젝션 조회
-		List<ScheduleSeatStatusProjection> scheduleSeatStatuses = scheduleSeatRepository.findSeatStatusesByConcertScheduleId(command.getConcertScheduleId());
+		List<ScheduleSeatStatusProjection> scheduleSeatStatuses = scheduleSeatRepository.findSeatStatusesByConcertScheduleId(concertScheduleId);
 		if (scheduleSeatStatuses.isEmpty()) {
 			return FindAllDTO.Result.empty();
 		}
 
 		// 회차 인덱스에서 조회
-		Set<Long> occupiedSeatIds = findOccupiedSeatIdsInSchedule(command.getConcertScheduleId());
+		Set<Long> occupiedSeatIds = findOccupiedSeatIdsInSchedule(concertScheduleId);
 
 		List<FindAllDTO.ScheduleSeatInfo> scheduleSeats = scheduleSeatStatuses.stream()
 			.map(scheduleSeat -> {
@@ -173,7 +181,7 @@ public class ScheduleSeatService {
 
 				return FindAllDTO.ScheduleSeatInfo.of(
 					scheduleSeat,
-					command.getConcertScheduleId(),
+					concertScheduleId,
 					seatStatus
 				);
 			})
