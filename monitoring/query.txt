@@ -7,7 +7,7 @@
 - GC Count: sum by(action, cause) (rate(jvm_gc_pause_seconds_count{instance="$instance", application="$application"}[$__rate_interval]))
 
 ## 2. Mysql Exporter + CloudWatch Exporter 사용하여 RDS의 CPU 및 Memory 추출 (스크랩하려는 리소스에 태그를 하나 이상 부여해야 식별됨에 유의)
-- TPS: sum by (role) (rate(mysql_global_status_queries[1m]))
+- TPS: rate(mysql_global_status_commands_total{command="commit"}[1m])
 - CPU: aws_rds_cpuutilization_average{dimension_DBInstanceIdentifier!=""}
 - Memory: aws_rds_freeable_memory_average{dimension_DBInstanceIdentifier!=""} / 1024 / 1024 / 1024 (여유 메모리 GB)
 
