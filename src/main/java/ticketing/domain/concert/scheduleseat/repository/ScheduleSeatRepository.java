@@ -42,9 +42,24 @@ public interface ScheduleSeatRepository extends JpaRepository<ScheduleSeat, Long
 		  AND ss.seatStatus = :seatStatus
 		ORDER BY sg.id
 		""")
-	List<ScheduleSeatGradeProjection> findSeatGradesByConcertScheduleIdAndSeatStatus(
+	List<ScheduleSeatGradeProjection> findAvailableSeatsByConcertScheduleIdAndSeatStatus(
 		@Param("concertScheduleId") Long concertScheduleId,
 		@Param("seatStatus") ScheduleSeat.SeatStatus seatStatus
+	);
+
+	/**
+	 * 점유 검증용 조회입니다. 좌석 ID와 회차를 함께 조건에 걸어, 다른 회차의 좌석이 섞여 들어오면
+	 * 결과 개수가 줄어들어 호출부에서 걸러낼 수 있습니다.
+	 */
+	@Query("""
+		SELECT ss
+		FROM ScheduleSeat ss
+		WHERE ss.id IN :scheduleSeatIds
+		  AND ss.concertSchedule.id = :concertScheduleId
+		""")
+	List<ScheduleSeat> findAllByIdInAndConcertScheduleId(
+		@Param("scheduleSeatIds") Collection<Long> scheduleSeatIds,
+		@Param("concertScheduleId") Long concertScheduleId
 	);
 
 	/**

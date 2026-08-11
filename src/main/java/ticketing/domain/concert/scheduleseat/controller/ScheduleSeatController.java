@@ -15,7 +15,7 @@ import ticketing.domain.concert.scheduleseat.dto.FindAllDTO;
 import ticketing.domain.concert.scheduleseat.dto.FindMyOccupyDTO;
 import ticketing.domain.concert.scheduleseat.dto.FindRemainingDTO;
 import ticketing.domain.concert.scheduleseat.dto.OccupyDTO;
-import ticketing.domain.concert.scheduleseat.service.ScheduleSeatService;
+import ticketing.domain.concert.scheduleseat.service.ScheduleSeatFacadeService;
 import ticketing.global.apiPayload.CommonResponse;
 import ticketing.global.apiPayload.code.GeneralSuccessCode;
 
@@ -25,7 +25,7 @@ import ticketing.global.apiPayload.code.GeneralSuccessCode;
 @RequiredArgsConstructor
 public class ScheduleSeatController {
 
-	private final ScheduleSeatService scheduleSeatService;
+	private final ScheduleSeatFacadeService scheduleSeatFacadeService;
 
 	/**
 	 * 여러 좌석을 5분간 선점(점유)합니다. Redis Lua 스크립트로 all-or-nothing 처리되어,
@@ -36,7 +36,7 @@ public class ScheduleSeatController {
 		@Valid @RequestBody OccupyDTO.Request request, @RequestParam Long userId) {
 		log.info("[ScheduleSeatController] occupy() 호출 - userId: {}, concertScheduleId: {}, scheduleSeatIds: {}",
 			userId, concertScheduleId, request.getScheduleSeatIds());
-		OccupyDTO.Result result = scheduleSeatService.occupy(request.toCommand(userId));
+		OccupyDTO.Result result = scheduleSeatFacadeService.occupy(request.toCommand(userId, concertScheduleId));
 		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
 	}
 
@@ -51,7 +51,7 @@ public class ScheduleSeatController {
 	public CommonResponse<FindAllDTO.Response> findAll(@PathVariable Long concertScheduleId,
 		@RequestParam Long userId, @RequestParam String token) {
 		log.info("[ScheduleSeatController] findAll() 호출 - userId: {}, concertScheduleId: {}", userId, concertScheduleId);
-		FindAllDTO.Result result = scheduleSeatService.findAll(FindAllDTO.Command.of(userId, concertScheduleId, token));
+		FindAllDTO.Result result = scheduleSeatFacadeService.findAll(FindAllDTO.Command.of(userId, concertScheduleId, token));
 		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
 	}
 
@@ -64,7 +64,7 @@ public class ScheduleSeatController {
 		@RequestParam Long userId
 	) {
 		log.info("[ScheduleSeatController] findRemaining() 호출 - userId: {}, concertScheduleId: {}", userId, concertScheduleId);
-		FindRemainingDTO.Result result = scheduleSeatService.findRemaining(FindRemainingDTO.Command.of(concertScheduleId));
+		FindRemainingDTO.Result result = scheduleSeatFacadeService.findRemaining(FindRemainingDTO.Command.of(concertScheduleId));
 		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
 	}
 
@@ -75,7 +75,7 @@ public class ScheduleSeatController {
 	@GetMapping("/users/occupy")
 	public CommonResponse<FindMyOccupyDTO.Response> findMyOccupy(@RequestParam Long userId) {
 		log.info("[ScheduleSeatController] findMyOccupy() 호출 - userId: {}", userId);
-		FindMyOccupyDTO.Result result = scheduleSeatService.findMyOccupy(FindMyOccupyDTO.Command.of(userId));
+		FindMyOccupyDTO.Result result = scheduleSeatFacadeService.findMyOccupy(FindMyOccupyDTO.Command.of(userId));
 		return CommonResponse.onSuccess(GeneralSuccessCode.OK, result.toResponse());
 	}
 }

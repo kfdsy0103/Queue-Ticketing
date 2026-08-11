@@ -19,9 +19,10 @@ public class OccupyDTO {
 		@NotBlank
 		String token;
 
-		public Command toCommand(Long userId) {
+		public Command toCommand(Long userId, Long concertScheduleId) {
 			return Command.builder()
 				.userId(userId)
+				.concertScheduleId(concertScheduleId)
 				.scheduleSeatIds(scheduleSeatIds)
 				.token(token)
 				.build();
@@ -32,6 +33,7 @@ public class OccupyDTO {
 	@Builder
 	public static class Command {
 		Long userId;
+		Long concertScheduleId;
 		List<Long> scheduleSeatIds;
 		String token;
 	}
