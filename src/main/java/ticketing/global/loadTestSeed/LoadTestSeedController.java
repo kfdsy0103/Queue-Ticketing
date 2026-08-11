@@ -1,6 +1,5 @@
 package ticketing.global.loadTestSeed;
 
-import org.springframework.context.annotation.Profile;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
@@ -11,7 +10,6 @@ import ticketing.global.apiPayload.CommonResponse;
 import ticketing.global.apiPayload.code.GeneralSuccessCode;
 
 @Slf4j
-@Profile("prod")
 @RestController
 @RequestMapping("/internal/seed")
 @RequiredArgsConstructor
