@@ -27,7 +27,7 @@ public class QueuePromotionScheduler {
 
 	/**
 	 * 티켓이 오픈됐고 공연일이 지나지 않은 콘서트 회차 목록을 조회하여,
-	 * 회차별로 1초마다 15명씩 입장 처리(Active)합니다.
+	 * 회차별로 1초마다 정해진 인원을 입장 처리(Active)합니다.
 	 * ShedLock으로 다중 인스턴스에서의 스케쥴러 동작 제어 추가
 	*/
 	@Async("schedulerTaskExecutor")
