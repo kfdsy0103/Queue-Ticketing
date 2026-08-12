@@ -41,9 +41,15 @@ export const options = {
     { target: __ENV.TARGET, duration: __ENV.RAMP_UP_DURATION },   // 램프업 시간
     { target: __ENV.TARGET, duration: __ENV.HOLD_DURATION },      // 유지 시간 (P95는 이 구간으로 판단)
   ],
-  // SLO 목표: 전체 API P95 200ms
+  // SLO 목표: 전체 및 API별 P95 200ms
   thresholds: {
-    http_req_duration: ['p(95)<200'],
+    http_req_duration: ['p(95)<200'],          // 전체
+    concert_duration: ['p(95)<200'],           // GET /concerts/{id}
+    concert_schedule_duration: ['p(95)<200'],  // GET /concerts/{id}/concert-schedules/{id}
+    enter_duration: ['p(95)<200'],             // POST /queue/enter, POST /queue/takeover
+    status_duration: ['p(95)<200'],            // GET /queue/status
+    seats_duration: ['p(95)<200'],             // GET /concert-schedules/{id}/schedule-seats
+    occupy_duration: ['p(95)<200'],            // POST /concert-schedules/{id}/schedule-seats/occupy
   },
   systemTags: ['proto', 'subproto', 'status', 'method', 'name', 'group', 'check', 'error', 'error_code', 'tls_version', 'scenario', 'service', 'expected_response'],
 };
