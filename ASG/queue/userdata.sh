@@ -1,9 +1,11 @@
 #!/bin/bash
-# ASG가 새 EC2를 띄울 때 실행되어, SSM에서 설정을 받아 애플리케이션을 가동하는 스크립트
+# [대기열 서버용] ASG가 새 EC2를 띄울 때 실행되어, SSM에서 설정을 받아 애플리케이션을 가동하는 스크립트
 # 이 파일은 Launch Template의 User data에 그대로 붙여넣어 사용한다.
 #
 # 아래 docker-compose.yml과 config.alloy는 저장소 루트의 동명 파일을 복사한 것이므로,
 # 원본을 수정하면 이 스크립트도 함께 고쳐야 한다.
+#
+# ASG/api/userdata.sh와는 '4. 역할별 설정' 블록만 다르다. 그 외를 고칠 때는 양쪽에 함께 반영한다.
 #
 # userdata.sh 바뀌면 Launch Template new version 만들고 젠킨스로 재배포하면 됨
 set -euo pipefail
@@ -119,7 +121,7 @@ loki.process "spring_labels" {
     // 고정 라벨 설정 (서비스명, 운영 환경)
     stage.static_labels {
        values = {
-          service = "ticketing-api",
+          service = "ticketing-queue",
           env     = sys.env("ALLOY_ENV"),
        }
     }
@@ -170,9 +172,20 @@ aws ssm get-parameters-by-path \
     --output text \
     | awk -F'\t' '{ n = split($1, path, "/"); print path[n] "=" $2 }' > .env
 
+# ── 4. 역할별 설정
+# SSM 경로를 api/queue가 공유하므로 역할 값은 SSM이 아니라 여기서 덧붙인다.
+# SCHEDULER_ENABLED=false — 스케줄러는 DB를 읽으므로 api 서버가 전담한다. 대기열 서버는 Redis만 쓴다.
+# SERVER_TOMCAT_THREADS_MAX — status 폴링은 요청이 짧아 스레드 회전이 빠르므로 기본 200보다 늘려 잡는다.
+# MANAGEMENT_HEALTH_DB_ENABLED=false — 대기열은 DB 없이 동작므로
+cat >> .env <<'ROLE_EOF'
+APP_ROLE=queue
+SCHEDULER_ENABLED=false
+MANAGEMENT_HEALTH_DB_ENABLED=false
+ROLE_EOF
+
 chmod 600 .env
 
-# ── 4. 애플리케이션 기동
+# ── 5. 애플리케이션 기동
 # private 저장소이므로 pull 전에 로그인하고, 끝나면 자격 증명을 지운다
 DOCKER_USERNAME=$(aws ssm get-parameter --region "$REGION" \
     --name "$DOCKER_SSM_PATH/DOCKER_USERNAME" \
