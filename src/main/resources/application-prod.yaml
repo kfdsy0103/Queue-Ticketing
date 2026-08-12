@@ -4,6 +4,7 @@ server:
       enabled: true  # Tomcat Threads metric 활성화
     threads:
       max: 200
+    max-connections: 15000
 
 spring:
   datasource:
