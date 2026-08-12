@@ -32,7 +32,7 @@ public class QueueService {
 	private static final String REDIRECT_ENDPOINT = "/frontend/booking";
 	private static final Duration SESSION_TTL = Duration.ofMinutes(3);
 	private static final Duration ACTIVE_TTL = Duration.ofMinutes(7);
-	private static final long PROMOTION_BATCH_SIZE = 100;
+	private static final long PROMOTION_BATCH_SIZE = 15;
 	private static final long JITTER_FREE_POSITION = 100;
 	private static final RedisScript<Long> PROMOTE_SCRIPT =
 		RedisScript.of(new ClassPathResource("luaScripts/promote-queue.lua"), Long.class);
