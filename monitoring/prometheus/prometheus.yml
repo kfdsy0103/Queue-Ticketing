@@ -11,7 +11,7 @@ scrape_configs:
         refresh_interval: 30s
         filters:
           - name: "tag:aws:autoscaling:groupName"
-            values: ["ticketing-asg"]  # ASG 이름
+            values: ["ticketing-asg", "queue-asg"]  # ASG 이름
           - name: "instance-state-name"
             values: ["running"]
     relabel_configs:
