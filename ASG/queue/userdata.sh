@@ -177,10 +177,25 @@ aws ssm get-parameters-by-path \
 # SCHEDULER_ENABLED=false — 스케줄러는 DB를 읽으므로 api 서버가 전담한다. 대기열 서버는 Redis만 쓴다.
 # SERVER_TOMCAT_THREADS_MAX — status 폴링은 요청이 짧아 스레드 회전이 빠르므로 기본 200보다 늘려 잡는다.
 # MANAGEMENT_HEALTH_DB_ENABLED=false — 대기열은 DB 없이 동작므로
+#
+# 아래 DataSource/JPA 설정은 대기열 서버가 DB 커넥션을 아예 잡지 않게 하기 위한 것이다.
+# DataSourceConfiguration이 역할과 무관하게 master/slave 풀을 만들기 때문에, 그대로 두면 쓰지도 않는 커넥션을 6개 물고 있고
+# 부팅 때 DB에 붙느라 DB 장애 시 대기열 서버까지 기동에 실패한다.
+#   MINIMUM_IDLE=0                 — 유휴 커넥션을 유지하지 않는다
+#   INITIALIZATION_FAIL_TIMEOUT=-1 — 음수면 기동 시 연결 시도 자체를 건너뛴다
+#   DDL_AUTO=none                  — 스키마 변경은 api 서버가 전담한다
+#   DATABASE_PLATFORM / ALLOW_JDBC_METADATA_ACCESS — Hibernate가 dialect를 알아내려 커넥션을 여는 것을 막는다
 cat >> .env <<'ROLE_EOF'
 APP_ROLE=queue
 SCHEDULER_ENABLED=false
 MANAGEMENT_HEALTH_DB_ENABLED=false
+SPRING_DATASOURCE_MASTER_MINIMUM_IDLE=0
+SPRING_DATASOURCE_MASTER_INITIALIZATION_FAIL_TIMEOUT=-1
+SPRING_DATASOURCE_SLAVE_MINIMUM_IDLE=0
+SPRING_DATASOURCE_SLAVE_INITIALIZATION_FAIL_TIMEOUT=-1
+SPRING_JPA_HIBERNATE_DDL_AUTO=none
+SPRING_JPA_DATABASE_PLATFORM=org.hibernate.dialect.MySQLDialect
+SPRING_JPA_PROPERTIES_HIBERNATE_BOOT_ALLOW_JDBC_METADATA_ACCESS=false
 ROLE_EOF
 
 chmod 600 .env
