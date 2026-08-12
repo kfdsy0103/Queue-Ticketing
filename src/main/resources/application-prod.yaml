@@ -36,6 +36,12 @@ spring:
     secret: ${JWT_SECRET}
     expiration: 1800000
 
+# 인스턴스 역할. API 서버인지, 대기열 서버인지
+app:
+  role: ${APP_ROLE:all}
+  scheduler:
+    enabled: ${SCHEDULER_ENABLED:true}
+
 # Prometheus
 management:
   endpoints:
@@ -55,3 +61,4 @@ management:
     tags:
       application: ticketing  # Grafana에서 앱 식별용
       namespace: ticketing    # namespace
+      role: ${APP_ROLE:all}   # API 서버 인지, 대기열 서버인지

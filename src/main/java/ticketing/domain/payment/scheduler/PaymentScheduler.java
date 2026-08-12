@@ -4,6 +4,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -19,6 +20,7 @@ import ticketing.global.util.RedisLockService;
 
 @Slf4j
 @Component
+@ConditionalOnProperty(name = "app.scheduler.enabled", havingValue = "true")	// api 서버 전용
 @RequiredArgsConstructor
 public class PaymentScheduler {
 

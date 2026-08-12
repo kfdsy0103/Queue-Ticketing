@@ -3,6 +3,7 @@ package ticketing.domain.queue.scheduler;
 import java.time.LocalDateTime;
 import java.util.List;
 
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
@@ -18,6 +19,7 @@ import ticketing.domain.queue.service.QueueService;
 @Slf4j
 @Component
 @RequiredArgsConstructor
+@ConditionalOnProperty(name = "app.scheduler.enabled", havingValue = "true")
 public class QueuePromotionScheduler {
 
 	private final ConcertScheduleRepository concertScheduleRepository;

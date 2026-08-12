@@ -24,3 +24,9 @@ spring:
   jwt:
     secret: large-ticketing-jwt-secret-key-local-dev-only-please-change
     expiration: 1800000
+
+# 인스턴스 역할. API 서버인지, 대기열 서버인지
+app:
+  role: ${APP_ROLE:all}
+  scheduler:
+    enabled: ${SCHEDULER_ENABLED:true}
