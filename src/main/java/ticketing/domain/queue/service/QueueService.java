@@ -17,9 +17,6 @@ import ticketing.domain.queue.dto.StatusDTO;
 import ticketing.domain.queue.dto.TakeoverDTO;
 import ticketing.domain.queue.enums.EnterType;
 import ticketing.domain.queue.exception.QueueErrorCode;
-import ticketing.domain.user.entity.User;
-import ticketing.domain.user.exception.UserErrorCode;
-import ticketing.domain.user.repository.UserRepository;
 import ticketing.global.apiPayload.code.GeneralErrorCode;
 import ticketing.global.apiPayload.exception.GeneralException;
 import ticketing.global.util.JitterUtil;
@@ -40,7 +37,6 @@ public class QueueService {
 	private static final RedisScript<Long> PROMOTE_SCRIPT =
 		RedisScript.of(new ClassPathResource("luaScripts/promote-queue.lua"), Long.class);
 
-	private final UserRepository userRepository;
 	private final RedisUtil redisUtil;
 	private final JwtTokenUtil jwtTokenUtil;
 
@@ -51,18 +47,18 @@ public class QueueService {
 	 */
 	public EnterDTO.Result enter(EnterDTO.Command command) {
 
-		User user = userRepository.findById(command.getUserId())
-			.orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
+		// 유저 존재 검증은 시큐리티 단에서 처리되었다고 가정
+		Long userId = command.getUserId();
 
 		String waitingKey = QueueRedisKeys.waitingKey(command.getConcertScheduleId());	// 대기열 Key
 		String counterKey = QueueRedisKeys.counterKey(command.getConcertScheduleId());	// 카운터 Key
-		String activeKey = QueueRedisKeys.activeKey(command.getConcertScheduleId(), user.getId());	// 대기열 -> 작업열 Key
-		String userInfoKey = QueueRedisKeys.userInfoKey(command.getConcertScheduleId(), user.getId());
+		String activeKey = QueueRedisKeys.activeKey(command.getConcertScheduleId(), userId);	// 대기열 -> 작업열 Key
+		String userInfoKey = QueueRedisKeys.userInfoKey(command.getConcertScheduleId(), userId);
 
 		// 1. EnterType이 JOIN(일반적인 예매하기 버튼)인 경우 -> 이미 대기열에 있거나 Active로 전환되었는지 확인 (만약 있다면 모달창 예외)
 		if (command.getEnterType() == EnterType.JOIN) {
 			boolean alreadyActive = redisUtil.hasKey(activeKey);
-			boolean alreadyWaiting = redisUtil.zRank(waitingKey, user.getId()) != null;
+			boolean alreadyWaiting = redisUtil.zRank(waitingKey, userId) != null;
 			if (alreadyActive || alreadyWaiting) {
 				throw new GeneralException(QueueErrorCode.ALREADY_JOINED);
 			}
@@ -70,7 +66,7 @@ public class QueueService {
 
 		// 2. EnterType이 REJOIN(모달창에서 새로 입장하기)이면 대기열 및 Active 슬롯을 여기서 제거 하도록.
 		if (command.getEnterType() == EnterType.REJOIN) {
-			redisUtil.opsForZSet().remove(waitingKey, user.getId());
+			redisUtil.opsForZSet().remove(waitingKey, userId);
 			redisUtil.delete(activeKey);
 		}
 
@@ -78,16 +74,16 @@ public class QueueService {
 		String queueSessionId = UUID.randomUUID().toString();
 
 		long score = redisUtil.increment(counterKey);
-		redisUtil.zAdd(waitingKey, user.getId(), score);
+		redisUtil.zAdd(waitingKey, userId, score);
 		redisUtil.set(userInfoKey, queueSessionId, SESSION_TTL);	// 소유 중인 화면 (값 + TTL 설정)
 
 		String token = jwtTokenUtil.generateToken(Map.of(
-			"userId", user.getId(),
+			"userId", userId,
 			"concertScheduleId", command.getConcertScheduleId(),
 			"queueSessionId", queueSessionId
 		));
 
-		long rank = safeRank(redisUtil.zRank(waitingKey, user.getId()));
+		long rank = safeRank(redisUtil.zRank(waitingKey, userId));
 		long retryAfterMs = nextPollIntervalMillis(rank);
 
 		return EnterDTO.Result.builder()
@@ -147,15 +143,15 @@ public class QueueService {
 	 */
 	public TakeoverDTO.Result takeover(TakeoverDTO.Command command) {
 
-		User user = userRepository.findById(command.getUserId())
-			.orElseThrow(() -> new GeneralException(UserErrorCode.USER_NOT_FOUND));
+		// 유저 존재 검증은 시큐리티 단에서 처리되었다고 가정
+		Long userId = command.getUserId();
 
 		String waitingKey = QueueRedisKeys.waitingKey(command.getConcertScheduleId());
-		String userInfoKey = QueueRedisKeys.userInfoKey(command.getConcertScheduleId(), user.getId());
-		String activeKey = QueueRedisKeys.activeKey(command.getConcertScheduleId(), user.getId());
+		String userInfoKey = QueueRedisKeys.userInfoKey(command.getConcertScheduleId(), userId);
+		String activeKey = QueueRedisKeys.activeKey(command.getConcertScheduleId(), userId);
 
 		boolean isActive = redisUtil.hasKey(activeKey);
-		boolean isWaiting = redisUtil.zRank(waitingKey, user.getId()) != null;
+		boolean isWaiting = redisUtil.zRank(waitingKey, userId) != null;
 		if (!isActive && !isWaiting) {
 			throw new GeneralException(QueueErrorCode.NOT_IN_QUEUE);
 		}
@@ -171,7 +167,7 @@ public class QueueService {
 		}
 
 		String token = jwtTokenUtil.generateToken(Map.of(
-			"userId", user.getId(),
+			"userId", userId,
 			"concertScheduleId", command.getConcertScheduleId(),
 			"queueSessionId", queueSessionId
 		));
@@ -184,7 +180,7 @@ public class QueueService {
 				.build();
 		}
 
-		long rank = safeRank(redisUtil.zRank(waitingKey, user.getId()));
+		long rank = safeRank(redisUtil.zRank(waitingKey, userId));
 		long retryAfterMs = nextPollIntervalMillis(rank);
 
 		return TakeoverDTO.Result.builder()
