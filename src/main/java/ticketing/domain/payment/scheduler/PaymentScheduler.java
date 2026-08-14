@@ -42,8 +42,8 @@ public class PaymentScheduler {
 	 */
 	@Async("schedulerTaskExecutor")
 	@Scheduled(fixedDelay = 60000)
-	@SchedulerLock(name = "processReadyPayments", lockAtLeastFor = "PT10S", lockAtMostFor = "PT50S")
-	public void processReadyPayments() {
+	@SchedulerLock(name = "reconcileReadyPayments", lockAtLeastFor = "PT10S", lockAtMostFor = "PT50S")
+	public void reconcileReadyPayments() {
 
 		// 조회 기준 시간
 		LocalDateTime threshold = LocalDateTime.now().minus(STALE_READY_THRESHOLD);
@@ -62,9 +62,9 @@ public class PaymentScheduler {
 			}
 
 			try {
-				paymentCommandService.processReadyPayment(payment.getId());
+				paymentCommandService.reconcileReadyPayment(payment.getId());
 			} catch (Exception e) {
-				log.error("[PaymentScheduler] - refundOrphanedPayments() paymentId={} 처리 중 오류", payment.getId(), e);
+				log.error("[PaymentScheduler] - reconcileReadyPayments() paymentId={} 처리 중 오류", payment.getId(), e);
 			} finally {
 				redisLockService.releaseLock(lockKey);
 			}
@@ -77,8 +77,8 @@ public class PaymentScheduler {
 	 */
 	@Async("schedulerTaskExecutor")
 	@Scheduled(fixedDelay = 60000)
-	@SchedulerLock(name = "processCancelRequestedPayments", lockAtLeastFor = "PT10S", lockAtMostFor = "PT50S")
-	public void processCancelRequestedPayments() {
+	@SchedulerLock(name = "reconcileCancelRequestedPayments", lockAtLeastFor = "PT10S", lockAtMostFor = "PT50S")
+	public void reconcileCancelRequestedPayments() {
 
 		LocalDateTime threshold = LocalDateTime.now().minus(STALE_CANCEL_THRESHOLD);
 
@@ -95,9 +95,9 @@ public class PaymentScheduler {
 			}
 
 			try {
-				paymentCommandService.processCancelRequestedPayment(payment.getId());
+				paymentCommandService.reconcileCancelRequestedPayment(payment.getId());
 			} catch (Exception e) {
-				log.error("[PaymentScheduler] - processCancelRequestedPayments() paymentId={} 처리 중 오류", payment.getId(), e);
+				log.error("[PaymentScheduler] - reconcileCancelRequestedPayments() paymentId={} 처리 중 오류", payment.getId(), e);
 			} finally {
 				redisLockService.releaseLock(lockKey);
 			}

@@ -55,7 +55,7 @@ public class PaymentCommandService {
 	 * 		1. PG에서 이미 취소된 경우	-> 로컬만 취소 확정
 	 * 		2. 아직 취소되지 않은 경우	-> 환불을 재시도한 뒤 취소 확정
 	 */
-	public void processCancelRequestedPayment(Long paymentId) {
+	public void reconcileCancelRequestedPayment(Long paymentId) {
 
 		Payment payment = paymentRepository.findById(paymentId)
 			.orElseThrow(() -> new GeneralException(PaymentErrorCode.PAYMENT_NOT_FOUND));
@@ -77,7 +77,7 @@ public class PaymentCommandService {
 		if (orderResponse.getStatus() != KakaoPayStatus.CANCEL_PAYMENT) {
 			kakaoPayApiClient.cancel(payment.getTid(), payment.getTotalPrice());
 			log.warn(
-				"[PaymentCommandService] - resolveStaleCancel() 환불이 반영되지 않은 상태로 감지되어 재요청했습니다. paymentId={}, tid={}, pgStatus={}",
+				"[PaymentCommandService] - reconcileCancelRequestedPayment() 환불이 반영되지 않은 상태로 감지되어 재요청했습니다. paymentId={}, tid={}, pgStatus={}",
 				paymentId, payment.getTid(), orderResponse.getStatus()
 			);
 		}
@@ -98,7 +98,7 @@ public class PaymentCommandService {
 		order.cancel();
 
 		log.info(
-			"[PaymentCommandService] - resolveStaleCancel() 반영되지 못한 환불 건의 로컬 취소를 마무리했습니다. paymentId={}, orderId={}",
+			"[PaymentCommandService] - reconcileCancelRequestedPayment() 반영되지 못한 환불 건의 로컬 취소를 마무리했습니다. paymentId={}, orderId={}",
 			paymentId, order.getId()
 		);
 	}
@@ -108,7 +108,7 @@ public class PaymentCommandService {
 	 * 		1. 승인이 완료된 경우 -> 환불 및 CANCELLED 처리
 	 * 		2. 승인이 미완료된 경우	-> CANCELLED 처리
 	 */
-	public void processReadyPayment(Long paymentId) {
+	public void reconcileReadyPayment(Long paymentId) {
 
 		Payment payment = paymentRepository.findById(paymentId)
 			.orElseThrow(() -> new GeneralException(PaymentErrorCode.PAYMENT_NOT_FOUND));
@@ -129,14 +129,14 @@ public class PaymentCommandService {
 			kakaoPayApiClient.cancel(payment.getTid(), payment.getTotalPrice());
 			payment.cancel();
 			log.warn(
-				"[PaymentCommandService] - resolveStalePayment() 실제 승인 완료 상태였으나, 로컬 커밋 미반영 상태로 감지되어 환불 처리되었습니다. paymentId={}, tid={}",
+				"[PaymentCommandService] - reconcileReadyPayment() 실제 승인 완료 상태였으나, 로컬 커밋 미반영 상태로 감지되어 환불 처리되었습니다. paymentId={}, tid={}",
 				paymentId,
 				payment.getTid()
 			);
 		} else {
 			payment.cancel();
 			log.info(
-				"[PaymentCommandService] - resolveStalePayment() 실제 미승인 상태로 만료되어 결제 건을 종료 처리했습니다. paymentId={}, tid={}, pgStatus={}",
+				"[PaymentCommandService] - reconcileReadyPayment() 실제 미승인 상태로 만료되어 결제 건을 종료 처리했습니다. paymentId={}, tid={}, pgStatus={}",
 				paymentId, payment.getTid(),
 				orderResponse.getStatus()
 			);
@@ -153,7 +153,7 @@ public class PaymentCommandService {
 		order.expire();
 
 		log.info(
-			"[PaymentCommandService] - resolveStalePayment() 결제 건이 종료 처리되어 더 이상 완료될 수 없는 주문을 만료 처리했습니다. orderId={}",
+			"[PaymentCommandService] - reconcileReadyPayment() 결제 건이 종료 처리되어 더 이상 완료될 수 없는 주문을 만료 처리했습니다. orderId={}",
 			order.getId()
 		);
 	}
