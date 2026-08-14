@@ -4,12 +4,13 @@ server:
       enabled: true  # Tomcat Threads metric 활성화
     threads:
       max: 200
-    max-connections: 15000
+  compression:
+    enabled: true
+    mime-types: text/html,text/plain,text/css,application/javascript,application/json
+    min-response-size: 2048
 
 spring:
   datasource:
-    # DataSourceBuilder가 HikariDataSource에 직접 바인딩하므로 url이 아니라 jdbc-url이어야 하고,
-    # 풀 설정도 hikari 하위가 아니라 같은 레벨에 적어야 한다
     master:
       jdbc-url: jdbc:mysql://${DB_MASTER_URL}?rewriteBatchedStatements=true&useServerPrepStmts=false
       username: ${DB_USERNAME}
