@@ -26,6 +26,16 @@ import ticketing.global.apiPayload.exception.GeneralException;
 @Component
 public class KakaoPayApiClient {
 
+	// 실제 PG 연동시에는 타임아웃 설정 및 이에 맞춰 TTL 맞춰야 할 필요.
+	//
+	// Race Condition Case
+	//
+	// A: 점유 -> 생성 -> 점유 만료 -> 네트워크 지연 -> 주문 Confirm
+	// B:                  점유 -> 생성 -> 주문 Confirm
+	//
+	// 따라서 점유한 유저에게는 HardTTL이 아니라, Client의 타임아웃만큼 여유를 두어 SoftTTL을 보여주도록 하여 분쟁 방지
+	// 만약 두 명 다 주문됐더라도, 최종적으로는 orderItem 쪽 DB 유니크 제약이 방어해준다.
+
 	// private final RestClient restClient;
 
 	/**
@@ -68,15 +78,6 @@ public class KakaoPayApiClient {
 	/**
 	 * tid와 pgToken으로 결제 승인을 요청하고, 승인 고유 번호 aid를 반환합니다.
 	 */
-	@Retryable(
-		include = Exception.class,
-		exclude = {
-			HttpClientErrorException.BadRequest.class,
-			HttpClientErrorException.NotFound.class
-		},
-		maxAttempts = 3,
-		backoff = @Backoff(delay = 500)
-	)
 	public KakaoPayApproveResponse approve(KakaoPayApproveRequest request) {
 		try {
 
@@ -149,11 +150,15 @@ public class KakaoPayApiClient {
 			Thread.sleep(500);
 
 			String tid = request.getTid();
+			String aid = "aid_" + UUID.randomUUID().toString().replace("-", "").substring(0, 16);
 			log.info("[KakaoPayApiClient] - order() PG 결제 상태 조회 완료. tid={}, status={}", tid, KakaoPayStatus.SUCCESS_PAYMENT);
 
 			return KakaoPayOrderResponse.builder()
 				.tid(tid)
+				.aid(aid)
 				.status(KakaoPayStatus.SUCCESS_PAYMENT)
+				.paymentMethodType("MONEY")
+				.amount(request.getAmount())
 				.approvedAt(LocalDateTime.now())
 				.build();
 		} catch (InterruptedException e) {

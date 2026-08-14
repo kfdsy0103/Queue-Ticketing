@@ -69,6 +69,7 @@ public class PaymentCommandService {
 		KakaoPayOrderResponse orderResponse = kakaoPayApiClient.order(
 			KakaoPayOrderRequest.builder()
 				.tid(payment.getTid())
+				.amount(payment.getTotalPrice())
 				.build()
 		);
 
@@ -120,6 +121,7 @@ public class PaymentCommandService {
 		KakaoPayOrderResponse orderResponse = kakaoPayApiClient.order(
 			KakaoPayOrderRequest.builder()
 				.tid(payment.getTid())
+				.amount(payment.getTotalPrice())
 				.build()
 		);
 

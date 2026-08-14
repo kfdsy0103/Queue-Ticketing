@@ -172,7 +172,7 @@ public class OrderCommandService {
 	}
 
 	/**
-	 * 소유자/상태/금액/점유를 검증하고 approve() 호출에 필요한 값을 반환합니다. (외부 PG 호출 없음)
+	 * DB에서 소유자/상태/금액/점유를 검증하고 approve() 호출에 필요한 값을 반환합니다.
 	 */
 	public ConfirmDTO.Validated validateConfirm(ConfirmDTO.Command command) {
 		Order order = orderRepository.findById(command.getOrderId())

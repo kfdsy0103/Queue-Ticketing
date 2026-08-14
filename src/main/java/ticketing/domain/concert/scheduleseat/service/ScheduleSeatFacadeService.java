@@ -41,7 +41,9 @@ import ticketing.global.util.RedisUtil;
 @RequiredArgsConstructor
 public class ScheduleSeatFacadeService {
 
-	private static final Duration OCCUPY_TTL = Duration.ofMinutes(5);
+	private static final Duration OCCUPY_HARD_TTL = Duration.ofMinutes(6);	// 실제 물리 TTL
+	private static final Duration OCCUPY_SOFT_TTL = Duration.ofMinutes(5);	// 결제까지 걸리는 시간을 고려하여, Race Condition 방지를 위한 Soft TTL
+
 	private static final RedisScript<Long> OCCUPY_SCRIPT =
 		RedisScript.of(new ClassPathResource("luaScripts/occupy-seats.lua"), Long.class);
 
@@ -80,10 +82,10 @@ public class ScheduleSeatFacadeService {
 
 		// ARGV 생성
 		long now = System.currentTimeMillis();
-		long expiresAtMillis = now + OCCUPY_TTL.toMillis();
+		long expiresAtMillis = now + OCCUPY_HARD_TTL.toMillis();
 		List<Object> args = new ArrayList<>();
 		args.add(command.getUserId());
-		args.add(OCCUPY_TTL.toSeconds());
+		args.add(OCCUPY_HARD_TTL.toSeconds());
 		args.add(expiresAtMillis);
 		args.addAll(command.getScheduleSeatIds());
 
@@ -95,7 +97,10 @@ public class ScheduleSeatFacadeService {
 			throw new GeneralException(ScheduleSeatErrorCode.ALREADY_OCCUPIED);
 		}
 
-		return OccupyDTO.Result.of(command.getScheduleSeatIds(), toLocalDateTime(expiresAtMillis));
+		return OccupyDTO.Result.of(
+			command.getScheduleSeatIds(),
+			toLocalDateTime(now + OCCUPY_SOFT_TTL.toMillis())
+		);
 	}
 
 	/**
@@ -197,14 +202,20 @@ public class ScheduleSeatFacadeService {
 		long now = System.currentTimeMillis();
 		Map<Long, LocalDateTime> expireTimePerSeat = new LinkedHashMap<>();
 
-		// 만료 시간이 지난건 필터링
 		for (ZSetOperations.TypedTuple<Object> tuple : occupiedTuples) {
-			if (tuple.getValue() == null || tuple.getScore() == null || tuple.getScore() <= now) {
+			if (tuple.getValue() == null || tuple.getScore() == null) {
 				continue;
 			}
+
+			// 사용자에게 보여지는 결제까지 남은 시간은 Hard TTL 6분이 아니라, Network Timeout을 고려하여 5분으로 표기 - 돈 출금 approve 단계에서 race condition 방지 -> 발생해도 DB 유니크 제약이 최종 방어
+			long softExpiresAtMillis = tuple.getScore().longValue() - (OCCUPY_HARD_TTL.toMillis() - OCCUPY_SOFT_TTL.toMillis());
+			if (softExpiresAtMillis <= now) {
+				continue;
+			}
+
 			expireTimePerSeat.put(
-				Long.valueOf(tuple.getValue().toString()),		// id
-				toLocalDateTime(tuple.getScore().longValue())	// 남은 TTL
+				Long.valueOf(tuple.getValue().toString()),	// id
+				toLocalDateTime(softExpiresAtMillis)		// 사용자에게 보여줄 남은 시간
 			);
 		}
 

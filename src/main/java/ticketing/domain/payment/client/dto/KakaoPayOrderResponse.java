@@ -10,7 +10,9 @@ import ticketing.domain.payment.client.enums.KakaoPayStatus;
 @Builder
 public class KakaoPayOrderResponse {
 	private String tid;
+	private String aid;
 	private KakaoPayStatus status;
+	private String paymentMethodType;
 	private int amount;
 	private LocalDateTime approvedAt;
 }

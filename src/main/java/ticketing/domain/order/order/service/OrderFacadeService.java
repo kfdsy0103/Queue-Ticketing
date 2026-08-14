@@ -14,8 +14,11 @@ import ticketing.domain.order.order.exception.OrderErrorCode;
 import ticketing.domain.payment.client.KakaoPayApiClient;
 import ticketing.domain.payment.client.dto.KakaoPayApproveRequest;
 import ticketing.domain.payment.client.dto.KakaoPayApproveResponse;
+import ticketing.domain.payment.client.dto.KakaoPayOrderRequest;
+import ticketing.domain.payment.client.dto.KakaoPayOrderResponse;
 import ticketing.domain.payment.client.dto.KakaoPayReadyRequest;
 import ticketing.domain.payment.client.dto.KakaoPayReadyResponse;
+import ticketing.domain.payment.client.enums.KakaoPayStatus;
 import ticketing.domain.payment.service.PaymentCommandService;
 import ticketing.global.apiPayload.exception.GeneralException;
 import ticketing.global.util.RedisLockService;
@@ -92,13 +95,53 @@ public class OrderFacadeService {
 			ConfirmDTO.Validated validated = orderCommandService.validateConfirm(command);
 
 			// 실제 출금 - 외부 API 호출 (트랜잭션 밖)
-			KakaoPayApproveResponse approveResponse = kakaoPayApiClient.approve(
-				KakaoPayApproveRequest.builder()
-					.tid(validated.getTid())
-					.pgToken(command.getPgToken())
-					.amount(validated.getAmount())
-					.build()
-			);
+			KakaoPayApproveResponse approveResponse;
+			try {
+				approveResponse = kakaoPayApiClient.approve(
+					KakaoPayApproveRequest.builder()
+						.tid(validated.getTid())
+						.pgToken(command.getPgToken())
+						.amount(validated.getAmount())
+						.build()
+				);
+			} catch (Exception approveFailure) {	// 타임아웃 등을 이유로 approve()에 실패한 경우
+
+				// 진짜 저쪽 서버에 반영이 되었는지 상태 조회 API 호출
+				KakaoPayOrderResponse orderResponse;
+				try {
+					orderResponse = kakaoPayApiClient.order(
+						KakaoPayOrderRequest.builder()
+							.tid(validated.getTid())
+							.amount(validated.getAmount())
+							.build()
+					);
+				} catch (Exception orderFailure) {
+					approveFailure.addSuppressed(orderFailure);
+					log.error(
+						"[OrderFacadeService] - confirm() 승인 응답도 상태 조회도 실패했습니다. 스케쥴러 대사에 맡깁니다. orderId={}, tid={}",
+						command.getOrderId(), validated.getTid(), approveFailure
+					);
+					throw approveFailure;
+				}
+
+				// 실제로 승인되지 않았으므로 원래 실패를 그대로 전파
+				if (orderResponse.getStatus() != KakaoPayStatus.SUCCESS_PAYMENT) {
+					throw approveFailure;
+				}
+
+				log.warn(
+					"[OrderFacadeService] - confirm() 승인 응답은 받지 못했지만 PG에서는 승인된 상태로 확인되어 확정을 이어갑니다. orderId={}, tid={}, aid={}",
+					command.getOrderId(), orderResponse.getTid(), orderResponse.getAid()
+				);
+
+				approveResponse = KakaoPayApproveResponse.builder()
+					.aid(orderResponse.getAid())
+					.tid(orderResponse.getTid())
+					.paymentMethodType(orderResponse.getPaymentMethodType())
+					.amount(orderResponse.getAmount())
+					.approvedAt(orderResponse.getApprovedAt())
+					.build();
+			}
 
 			try {
 				return orderCommandService.completeConfirm(command, approveResponse);
@@ -145,4 +188,5 @@ public class OrderFacadeService {
 			redisLockService.releaseLock(lockKey);
 		}
 	}
+
 }
