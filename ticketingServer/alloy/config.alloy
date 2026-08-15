@@ -22,7 +22,7 @@ loki.process "spring_labels" {
     // 고정 라벨 설정 (서비스명, 운영 환경)
     stage.static_labels {
        values = {
-          service = "ticketing-api",
+          service = "ticketing",
           env     = sys.env("ALLOY_ENV"),
        }
     }

@@ -1,7 +1,7 @@
 services:
   app:
-    image: ${DOCKER_REPOSITORY}:${IMAGE_TAG}
-    container_name: ticketing-api
+    image: ${DOCKER_REPOSITORY_TICKETING}:${IMAGE_TAG_TICKETING}
+    container_name: ticketing
     env_file:
       - .env
     ports:
