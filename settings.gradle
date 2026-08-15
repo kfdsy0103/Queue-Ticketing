@@ -1,4 +1,4 @@
-rootProject.name = 'large-ticketing'
+rootProject.name = 'queue-ticketing'
 
 include 'ticketingServer'
 include 'queueServer'
