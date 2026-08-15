@@ -1,0 +1,6 @@
+# Redis는 testContainer에서 동적 주입
+# 대기열 서버는 DB에 접속하지 않으므로 datasource/jpa 설정을 두지 않는다
+spring:
+  jwt:
+    secret: large-ticketing-jwt-secret-key-for-test-only-do-not-use
+    expiration: 1800000

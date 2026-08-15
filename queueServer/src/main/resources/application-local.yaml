@@ -1,0 +1,21 @@
+server:
+  port: 8081   # 티켓팅 서버(8080)와 함께 띄울 수 있도록 분리
+  tomcat:
+    mbeanregistry:
+      enabled: true  # Tomcat Threads metric 활성화
+    threads:
+      max: 200
+  compression:
+    enabled: true
+    mime-types: text/html,text/plain,text/css,application/javascript,application/json
+    min-response-size: 2048
+
+# 대기열 서버는 DB에 접속하지 않으므로 datasource/jpa 설정을 두지 않는다
+spring:
+  data:
+    redis:
+      host: localhost
+      port: 6379
+  jwt:
+    secret: large-ticketing-jwt-secret-key-local-dev-only-please-change
+    expiration: 1800000

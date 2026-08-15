@@ -1,0 +1,41 @@
+services:
+  app:
+    image: ${DOCKER_REPOSITORY_QUEUE}:${IMAGE_TAG_QUEUE}
+    container_name: queue
+    env_file:
+      - .env
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./logs:/app/logs  # EC2에 로그 파일 마운트 (alloy도 동일한 바인드 마운트해야함에 유의)
+    restart: unless-stopped
+
+  alloy:
+    image: grafana/alloy:latest
+    container_name: alloy
+    environment:
+      - ALLOY_ENV=prod  # alloy config에서 운영 환경을 인식하고 라벨로 활용하기 위함
+    ports:
+      - "12345:12345"
+    volumes:
+      - ./alloy/queue.alloy:/etc/alloy/config.alloy:ro   # alloy config 마운트 (컨테이너 내부 경로는 alloy 기본값이라 고정)
+      - ./logs:/var/log/spring:ro   # spring에서 logback이 남기는 파일 로그를 읽기 위함 (app도 ./logs로 바인드 마운트했음에 유의)
+    restart: unless-stopped
+
+  node-exporter:
+    depends_on:
+      - app
+    image: prom/node-exporter:latest
+    container_name: node-exporter
+    restart: unless-stopped
+    pid: host # 컨테이너 내부가 아닌, 호스트 레벨의 프로세스를 보도록
+    network_mode: host # 네트워크도 호스트 레벨의 네트워크를 따르도록
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - "--path.procfs=/host/proc"
+      - "--path.sysfs=/host/sys"
+      - "--path.rootfs=/rootfs"
+      - "--collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)"
