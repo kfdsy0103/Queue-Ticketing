@@ -1,6 +1,6 @@
 ## 대시보드는 dashboard.md
 
-## 1. EC2 Node Exporter (Spring 서버)
+## 1. EC2 Node Exporter (yml에 설정해둔 application으로 티켓팅 서버인지, 대기열 서버인지 구분)
 - CPU: 100 - (avg by(instance) (rate(node_cpu_seconds_total{mode="idle", instance="$node"}[$__rate_interval])) * 100)
 - Memory: (1 - (node_memory_MemAvailable_bytes{instance="$node"} / node_memory_MemTotal_bytes{instance="$node"})) * 100
 - GC 평균 Paused Time: sum by(action, cause) (rate(jvm_gc_pause_seconds_sum{instance="$instance", application="$application", namespace="$Namespace"}[$__rate_interval])) / sum by(action, cause) (rate(jvm_gc_pause_seconds_count{instance="$instance", application="$application", namespace="$Namespace"}[$__rate_interval]))
@@ -53,11 +53,13 @@ query...
 - 전체 p95: avg(k6_http_req_duration_p95)
 
 ## 6. 로그
-- {service="ticketing-api", level="INFO"}
-- {service="ticketing-api", level="WARN"}
-- {service="ticketing-api", level="ERROR"}
+- 전체 INFO: {service=~"ticketing|queue", level="INFO"}
+- 전체 WARN: {service=~"ticketing|queue", level="WARN"}
+- 전체 ERROR: {service=~"ticketing|queue", level="ERROR"}
+- 티켓팅 서버: {service="ticketing", level=~"WARN|ERROR"}
+- 대기열 서버: {service="queue", level=~"WARN|ERROR"}
 
-## 7. 캐시 히트율
+## 7. 캐시 히트율 (티켓팅 서버)
 - 그룹별 전체 히트율: sum(rate(ticketing_cache_gets_total{result=~"global_hit|local_hit"}[$__rate_interval])) by (group) / sum(rate(ticketing_cache_gets_total[$__rate_interval])) by (group)
 - 그룹별 글로벌 히트율: sum(rate(ticketing_cache_gets_total{result="global_hit"}[$__rate_interval])) by (group) / sum(rate(ticketing_cache_gets_total[$__rate_interval])) by (group)
 - 그룹별 로컬 히트율: sum(rate(ticketing_cache_gets_total{result="local_hit"}[$__rate_interval])) by (group) / sum(rate(ticketing_cache_gets_total[$__rate_interval])) by (group)
