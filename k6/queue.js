@@ -1,11 +1,5 @@
 // [테스트 목적]
-// 대기열(Queue) 서버만 격리하여 처리량과 응답 시간을 관찰하기 위함
-//
-// [시나리오]
-// VU 1명 = 대기자 1명으로 두고 다음을 반복한다.
-//   1. 대기열에 진입해 토큰을 받는다.
-//   2. 서버가 내려주는 주기(retryAfterMs)에 맞춰 상태를 폴링한다.
-//   3. 승격되면 다시 대기열에 REJOIN으로 줄을 서서 부하를 유지
+// 대기열 입장인 enter API, 대기열 순번 조회인 status API를 호출하여 대기열 서버의 TPS 측정을 하기 위함
 //
 // [.env]
 // K6_WEB_DASHBOARD=true                                                  # 5665 실시간 웹 대시보드 노출
@@ -26,10 +20,11 @@ import { check, sleep } from 'k6';
 import { Counter, Trend } from 'k6/metrics';
 
 const BASE_URL = __ENV.BASE_URL || 'http://localhost:8080';
+const CONCERT_SCHEDULE_ID = Number(__ENV.CONCERT_SCHEDULE_ID || '1');
 
 // 대기열 API 측정용 커스텀 Trend
-const enterDuration = new Trend('enter_duration', true);     // 대기열 입장
-const statusDuration = new Trend('status_duration', true);   // 대기열 폴링
+const enterDuration = new Trend('enter_duration', true);      // 대기열 입장
+const statusDuration = new Trend('status_duration', true);    // 대기열 상태 조회
 
 const errorCount = new Counter('error_count');
 
@@ -41,16 +36,20 @@ export const options = {
   systemTags: ['proto', 'subproto', 'status', 'method', 'name', 'group', 'check', 'error', 'error_code', 'tls_version', 'scenario', 'service', 'expected_response'],
 };
 
-const USER_ID = __VU;
-let queueToken = null;
-
 const JSON_HEADERS = { headers: { 'Content-Type': 'application/json' } };
 
+const USER_ID = __VU;
+
 export default function () {
+
+  // 1. 대기열 입장
+  let queueToken = enterQueue();
   if (queueToken === null) {
-    enterQueue();
+    return;
   }
-  polling();
+
+  // 2. 대기열 상태 폴링
+  polling(queueToken);
 }
 
 // 대기열 입장
@@ -58,38 +57,37 @@ function enterQueue() {
 
   const enterRes = http.post(
     `${BASE_URL}/api/v1/queue/enter?userId=${USER_ID}`,
-    JSON.stringify({ concertScheduleId: __ENV.CONCERT_SCHEDULE_ID, enterType: 'REJOIN' }),
+    JSON.stringify({ concertScheduleId: CONCERT_SCHEDULE_ID, enterType: 'REJOIN' }),
     { ...JSON_HEADERS, tags: { name: 'POST /queue/enter' } }
   );
   enterDuration.add(enterRes.timings.duration);
 
   if (!check(enterRes, { 'enter 201': (r) => r.status === 201 })) {
     errorCount.add(1);
-    return;
+    return null;
   }
 
-  queueToken = enterRes.json('result.token');
+  return enterRes.json('result.token');
 }
 
-// 폴링
-function polling() {
+// 대기열 상태 폴링
+function polling(queueToken) {
 
-  const statusRes = http.get(
-    `${BASE_URL}/api/v1/queue/status?userId=${USER_ID}&token=${queueToken}`,
-    { tags: { name: 'GET /queue/status' } }
-  );
-  statusDuration.add(statusRes.timings.duration);
+  while (true) {
+    const statusRes = http.get(
+      `${BASE_URL}/api/v1/queue/status?userId=${USER_ID}&token=${queueToken}`,
+      { tags: { name: 'GET /queue/status' } }
+    );
+    statusDuration.add(statusRes.timings.duration);
 
-  if (!check(statusRes, { 'status 200': (r) => r.status === 200 })) {
-    errorCount.add(1);
-    queueToken = null;
-    return;
+    if (!check(statusRes, { 'status 200': (r) => r.status === 200 })) {
+      errorCount.add(1);
+      return;
+    }
+    if (statusRes.json('result.isActive') === true) {
+      return;
+    }
+
+    sleep((statusRes.json('result.retryAfterMs') || 1000) / 1000);  // 서버가 내려주는 주기로 폴링
   }
-
-  if (statusRes.json('result.isActive') === true) {
-    queueToken = null;
-    return;
-  }
-
-  sleep((statusRes.json('result.retryAfterMs') || 1000) / 1000);  // 서버가 내려주는 주기로 폴링
 }
