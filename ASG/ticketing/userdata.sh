@@ -1,6 +1,6 @@
 #!/bin/bash
-# docker-compose.yml -> queueServer/docker-compose.yml
-# alloy -> queueServer/alloy/config.alloy
+# docker-compose.yml -> ticketingServer/docker-compose.yml
+# alloy -> ticketingServer/alloy/config.alloy
 # 그대로 복사한 것이므로, 원본을 수정하면 해당 스크립트도 수정 필요 + Launch Template new version 이후 재배포
 
 set -euo pipefail
@@ -35,7 +35,7 @@ unzip -q -o /tmp/awscliv2.zip -d /tmp
 /tmp/aws/install --update
 rm -rf /tmp/aws /tmp/awscliv2.zip
 
-# app 실행 경로 설정
+# 실행 경로 설정
 mkdir -p "$DEPLOY_DIR/alloy" "$DEPLOY_DIR/logs"
 cd "$DEPLOY_DIR"
 
@@ -43,8 +43,8 @@ cd "$DEPLOY_DIR"
 cat > docker-compose.yml <<'COMPOSE_EOF'
 services:
   app:
-    image: ${DOCKER_REPOSITORY_QUEUE}:${IMAGE_TAG_QUEUE}
-    container_name: queue
+    image: ${DOCKER_REPOSITORY_TICKETING}:${IMAGE_TAG_TICKETING}
+    container_name: ticketing
     env_file:
       - .env
     ports:
@@ -110,7 +110,7 @@ loki.process "spring_labels" {
     // 고정 라벨 설정 (서비스명, 운영 환경)
     stage.static_labels {
        values = {
-          service = "queue",
+          service = "ticketing",
           env     = sys.env("ALLOY_ENV"),
        }
     }
@@ -148,7 +148,7 @@ loki.write "grafana_loki" {
 }
 ALLOY_EOF
 
-# alloy config에 모니터링 서버 주소 치환
+# alloy config에 모니터링 서버 주소(private IP) 치환
 MONITORING_HOST=$(aws ssm get-parameter --region "$REGION" \
     --name "$SSM_PATH/MONITORING_HOST" \
     --query 'Parameter.Value' --output text)
