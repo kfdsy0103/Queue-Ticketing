@@ -18,7 +18,7 @@ services:
     ports:
       - "12345:12345"
     volumes:
-      - ./alloy/queue.alloy:/etc/alloy/config.alloy:ro   # alloy config 마운트 (컨테이너 내부 경로는 alloy 기본값이라 고정)
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro   # alloy config 마운트
       - ./logs:/var/log/spring:ro   # spring에서 logback이 남기는 파일 로그를 읽기 위함 (app도 ./logs로 바인드 마운트했음에 유의)
     restart: unless-stopped
 

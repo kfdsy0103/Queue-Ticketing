@@ -1,0 +1,60 @@
+// 여기에서의 로그 레벨은 alloy 프로세스 자체적인 로그 레벨을 의미
+logging {
+	level  = "info"
+	format = "logfmt"
+}
+
+// 1. 로그 파일 경로 지정 (현재는 all.log 하나로 통합)
+local.file_match "spring_logs" {
+	path_targets = [{ __path__ = "/var/log/spring/all.log" }]
+}
+
+// 2. 로그 읽기 및 전달 파이프라인 생성
+loki.source.file "spring_source" {
+	targets    = local.file_match.spring_logs.targets   // from
+	forward_to = [loki.process.spring_labels.receiver]  // to
+}
+
+// 3. 로그 가공 및 라벨링
+loki.process "spring_labels" {
+    forward_to = [loki.write.grafana_loki.receiver]
+
+    // 고정 라벨 설정 (서비스명, 운영 환경)
+    stage.static_labels {
+       values = {
+          service = "queue",
+          env     = sys.env("ALLOY_ENV"),
+       }
+    }
+
+    // Java 스택 트레이스 멀티 라인 병합
+    stage.multiline {
+       firstline     = "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}"
+       max_wait_time = "3s"
+    }
+
+    // 로그 라인에서 로그 레벨(level) 추출
+    stage.regex {
+       expression = "^\\S+ \\S+ \\[(?P<thread>[^\\]]+)\\] (?P<level>\\w+)\\s+"
+    }
+
+    // 위에서 추출한 level 라벨링 하여 검색/필터링에 사용
+    stage.labels {
+       values = {
+          level = "",
+       }
+    }
+}
+
+// 4. 모니터링 서버의 Loki로 전송
+loki.write "grafana_loki" {
+	endpoint {
+		url        = "http://<monitoring-host>:3100/loki/api/v1/push"
+
+        tenant_id  = "fake" // Loki 하나를 여러 팀에서 같이 쓰는 경우, 로그를 분리하기 위한 ID 값 (싱글 테넌트이기 때문에 fake로 명시)
+
+		// 1MB에 도달하거나, 1초 지나면 전송
+		batch_wait = "1s"
+		batch_size = "1MB"
+	}
+}
