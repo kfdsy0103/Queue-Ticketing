@@ -5,16 +5,17 @@ import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 import ticketing.domain.order.order.entity.Order;
 import ticketing.domain.payment.entity.Payment;
 
 public interface PaymentRepository extends JpaRepository<Payment, Long> {
 	Optional<Payment> findByOrderId(Long orderId);
-	List<Payment> findAllByStatusAndCreatedAtBefore(Payment.PaymentStatus status, LocalDateTime createdAtBefore);
 
-	/**
-	 * CANCEL_REQUESTED처럼 생성이 아니라 전이 시점이 기준인 상태를 조회할 때 사용합니다.
-	 */
-	List<Payment> findAllByStatusAndUpdatedAtBefore(Payment.PaymentStatus status, LocalDateTime updatedAtBefore);
+	@Query("SELECT p.order.id FROM Payment p WHERE p.status = :status AND p.createdAt < :threshold")
+	List<Long> findOrderIdsByStatusAndCreatedAtBefore(Payment.PaymentStatus status, LocalDateTime threshold);
+
+	@Query("SELECT p.order.id FROM Payment p WHERE p.status = :status AND p.updatedAt < :threshold")
+	List<Long> findOrderIdsByStatusAndUpdatedAtBefore(Payment.PaymentStatus status, LocalDateTime threshold);
 }
