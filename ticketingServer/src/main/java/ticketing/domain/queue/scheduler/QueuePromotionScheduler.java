@@ -3,7 +3,6 @@ package ticketing.domain.queue.scheduler;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -27,7 +26,6 @@ public class QueuePromotionScheduler {
 	 * 회차별로 1초마다 정해진 인원을 입장 처리(Active)합니다.
 	 * ShedLock으로 다중 인스턴스에서의 스케쥴러 동작 제어 추가
 	*/
-	@Async("schedulerTaskExecutor")
 	@Scheduled(fixedDelay = 1000)
 	@SchedulerLock(name = "queuePromotionScheduler", lockAtLeastFor = "PT1S", lockAtMostFor = "PT30S")
 	public void promoteScheduler() {

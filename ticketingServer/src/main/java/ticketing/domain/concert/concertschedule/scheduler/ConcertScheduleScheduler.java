@@ -6,7 +6,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 
-import org.springframework.scheduling.annotation.Async;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -37,7 +36,6 @@ public class ConcertScheduleScheduler {
 	 * 스템피드 방지를 위해 티켓 오픈이 10분 안으로 다가온 회차의 캐시를 미리 갱신해둡니다.
 	 * 오픈 이후에는 조회가 활발할 것으로 예상되므로 -> PER에서 자연스럽게 갱신됨
 	 */
-	@Async("schedulerTaskExecutor")
 	@Scheduled(fixedDelay = WARMUP_INTERVAL_MS)
 	public void warmUpConcertScheduleCaches() {
 

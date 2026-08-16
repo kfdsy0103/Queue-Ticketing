@@ -1,12 +1,10 @@
 package ticketing.global.config;
 
-import java.util.concurrent.Executor;
-import java.util.concurrent.RejectedExecutionException;
-
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+import org.springframework.scheduling.TaskScheduler;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 
 import lombok.RequiredArgsConstructor;
 import net.javacrumbs.shedlock.core.LockProvider;
@@ -21,28 +19,25 @@ import lombok.extern.slf4j.Slf4j;
 @EnableSchedulerLock(defaultLockAtMostFor = "PT30S") 	// ISO 8601 표준 표기법
 public class SchedulerConfig {
 
+	// @Scheduled 메서드 수. 기본 TaskScheduler는 스레드가 1개라 주기가 짧은 잡이 나머지를 막는다.
+	// @Async로 우회하면 ShedLock이 실제 실행을 감싸지 못할 수 있으므로, 스케쥴러 풀 자체를 늘린다.
+	private static final int SCHEDULER_POOL_SIZE = 5;
+
 	/**
-	 * 스케쥴러용 스레드풀
+	 * @Scheduled 전용 스케쥴러 풀
 	 */
-	@Bean(name = "schedulerTaskExecutor")
-	public Executor schedulerTaskExecutor() {
-		ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-		executor.setCorePoolSize(4);
-		executor.setMaxPoolSize(8);
-		executor.setQueueCapacity(100);
-		executor.setThreadNamePrefix("scheduler-worker-");
-		executor.setRejectedExecutionHandler((task, exe) -> {
-			log.error(
-				"SchedulerTaskExecutor에서 Task rejected. active={}, pool={}, queue={}, completed={}",
-				exe.getActiveCount(),
-				exe.getPoolSize(),
-				exe.getQueue().size(),
-				exe.getCompletedTaskCount()
-			);
-			throw new RejectedExecutionException("SchedulerTaskExecutor 큐가 가득 차 작업을 처리할 수 없습니다.");
-		});
-		executor.initialize();
-		return executor;
+	@Bean
+	public TaskScheduler taskScheduler() {
+		ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
+		scheduler.setPoolSize(SCHEDULER_POOL_SIZE);
+		scheduler.setThreadNamePrefix("scheduler-worker-");
+		scheduler.setErrorHandler(throwable ->
+			log.error("[SchedulerConfig] 스케쥴러 작업에서 처리되지 못한 예외가 발생했습니다.", throwable)
+		);
+		scheduler.setWaitForTasksToCompleteOnShutdown(true);
+		scheduler.setAwaitTerminationSeconds(60);
+		scheduler.initialize();
+		return scheduler;
 	}
 
 	/**
