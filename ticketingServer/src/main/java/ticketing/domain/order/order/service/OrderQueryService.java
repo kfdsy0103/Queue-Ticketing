@@ -1,5 +1,8 @@
 package ticketing.domain.order.order.service;
 
+import java.time.LocalDateTime;
+import java.util.List;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,5 +38,15 @@ public class OrderQueryService {
 			.totalPrice(order.getTotalPrice())
 			.createdAt(order.getCreatedAt())
 			.build();
+	}
+
+	/**
+	 * 결제가 붙지 못한 채 PENDING으로 남아있는 주문의 ID를 조회합니다.
+	 */
+	public List<Long> findOrphanedPendingOrderIds(LocalDateTime threshold) {
+		return orderRepository.findOrphanedPendingOrderIdsWithoutPayment(
+			Order.OrderStatus.PENDING,
+			threshold
+		);
 	}
 }
