@@ -58,8 +58,8 @@ public class OrderCommandService {
 	private final RedisUtil redisUtil;
 
 	/**
-	 * 주문 생성 1단계: 좌석/점유 검증 후 Order(PENDING)와 OrderItem을 저장합니다. (외부 PG 호출 없음)
-	 * PG ready() 호출은 이 트랜잭션 밖에서 수행되도록 OrderFacadeService가 오케스트레이션합니다.
+	 * TX1: 좌석/점유 검증 후 Order(PENDING)와 OrderItem(PENDING)을 저장합니다.
+	 * PG ready API 호출은 이 트랜잭션 이후에 수행되도록 OrderFacadeService에서 오케스트레이션합니다.
 	 */
 	public Long createOrder(CreateDTO.Command command) {
 		User user = userRepository.findById(command.getUserId())
@@ -184,7 +184,7 @@ public class OrderCommandService {
 		}
 
 		// 해당 orderId 건이 이미 결제 완료된 상태인 경우
-		if (order.getOrderStatus() == Order.OrderStatus.COMPLETED) {
+		if (order.getOrderStatus() == Order.OrderStatus.CONFIRMED) {
 			throw new GeneralException(PaymentErrorCode.ALREADY_PAID);
 		}
 
@@ -204,10 +204,6 @@ public class OrderCommandService {
 
 		// 출금 전, 주문에 속한 좌석들을 지금도 본인이 Redis에서 점유 중인지 확인
 		List<OrderItem> orderItems = orderItemRepository.findAllByOrderIdWithScheduleSeat(order.getId());
-
-		// 항목이 하나도 없는 비정상 주문에 대한 방어.
-		// verify-occupy.lua는 KEYS가 비면 루프를 돌지 않고 성공(1)을 반환하므로, 여기서 먼저 막지 않으면
-		// 좌석을 하나도 검증하지 않은 채 점유 확인을 통과해 결제 승인으로 넘어간다.
 		if (orderItems.isEmpty()) {
 			throw new GeneralException(ScheduleSeatErrorCode.NOT_OCCUPIED_BY_USER);
 		}
@@ -240,7 +236,7 @@ public class OrderCommandService {
 			.orElseThrow(() -> new GeneralException(OrderErrorCode.ORDER_NOT_FOUND));
 
 		// 멱등 (이미 처리됨)
-		if (order.getOrderStatus() == Order.OrderStatus.COMPLETED) {
+		if (order.getOrderStatus() == Order.OrderStatus.CONFIRMED) {
 			throw new GeneralException(PaymentErrorCode.ALREADY_PAID);
 		}
 
@@ -269,7 +265,7 @@ public class OrderCommandService {
 		orderItems.forEach(orderItem -> orderItem.getScheduleSeat().sell());
 
 		// order 확정
-		order.complete();
+		order.confirm();
 
 		return ConfirmDTO.Result.builder()
 			.orderId(order.getId())
@@ -299,9 +295,9 @@ public class OrderCommandService {
 			throw new GeneralException(OrderErrorCode.ALREADY_CANCELLED_ORDER);
 		}
 
-		// COMPLETED인 상태의 Order만 취소 가능
-		if (order.getOrderStatus() != Order.OrderStatus.COMPLETED) {
-			throw new GeneralException(OrderErrorCode.ORDER_NOT_COMPLETED);
+		// CONFIRMED인 상태의 Order만 취소 가능
+		if (order.getOrderStatus() != Order.OrderStatus.CONFIRMED) {
+			throw new GeneralException(OrderErrorCode.ORDER_NOT_CONFIRMED);
 		}
 
 		Payment payment = paymentRepository.findByOrderId(order.getId())
@@ -330,6 +326,11 @@ public class OrderCommandService {
 
 		Payment payment = paymentRepository.findByOrderId(order.getId())
 			.orElseThrow(() -> new GeneralException(PaymentErrorCode.PAYMENT_NOT_FOUND));
+
+		// PG 환불 사이에 스케쥴러가 먼저 취소를 마무리했다면 좌석이 이미 AVAILABLE이라 아래 cancel()이 터진다
+		if (payment.getStatus() != Payment.PaymentStatus.CANCEL_REQUESTED) {
+			throw new GeneralException(OrderErrorCode.ALREADY_CANCELLED_ORDER);
+		}
 
 		List<OrderItem> orderItems = orderItemRepository.findAllByOrderIdWithScheduleSeat(order.getId());
 

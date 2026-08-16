@@ -41,16 +41,16 @@ public class Order extends BaseEntity {
 
     private int totalPrice;
 
-    public void complete() {
+    public void confirm() {
         if (this.orderStatus != OrderStatus.PENDING) {
             throw new GeneralException(OrderErrorCode.NOT_PENDING_ORDER);
         }
-        this.orderStatus = OrderStatus.COMPLETED;
+        this.orderStatus = OrderStatus.CONFIRMED;
     }
 
     public void cancel() {
-        if (this.orderStatus != OrderStatus.COMPLETED) {
-            throw new GeneralException(OrderErrorCode.ORDER_NOT_COMPLETED);
+        if (this.orderStatus != OrderStatus.CONFIRMED) {
+            throw new GeneralException(OrderErrorCode.ORDER_NOT_CONFIRMED);
         }
         this.orderStatus = OrderStatus.CANCELLED;
     }
@@ -64,7 +64,7 @@ public class Order extends BaseEntity {
 
     public enum OrderStatus {
         PENDING,    // 주문 생성됨, 결제 대기 중
-        COMPLETED,  // 결제 승인 완료
+        CONFIRMED,  // 결제 승인 완료
         EXPIRED,    // 결제되지 못한 채 종료됨
         CANCELLED   // 결제 완료 후 취소
     }
