@@ -71,7 +71,10 @@ public class OrderFacadeService {
 				.redirectUrl(readyResponse.getRedirectUrl())
 				.build();
 		} catch (Exception e) {
-			orderCommandService.expireOrder(orderId);
+			// createOrder() 자체가 실패하면 orderId가 없다. 여기서 findById(null)이 터지면 원래 원인이 덮인다
+			if (orderId != null) {
+				orderCommandService.expireOrder(orderId);
+			}
 			throw e;
 		} finally {
 			redisLockService.releaseLock(lockKey);
@@ -158,11 +161,11 @@ public class OrderFacadeService {
 	/**
 	 * orderId 기반 멱등 처리
 	 * 		검증(tx) -> PG 환불 -> 로컬 확정(tx).
-	 * 		이떄, confirm()과 같은 Lock 키를 써서 같은 주문에 대한 확정, 취소가 동시에 진행되지 않도록 방어
+	 * 		이떄, 취소 대사 스케쥴러와 같은 Lock 키를 써서 같은 주문에 대한 환불이 중복 진행되지 않도록 방어
 	 */
 	public CancelDTO.Result cancelAll(CancelDTO.Command command) {
 
-		String lockKey = OrderRedisKeys.confirmLockKey(command.getOrderId());
+		String lockKey = OrderRedisKeys.cancelLockKey(command.getOrderId());
 		boolean acquired = redisLockService.tryLock(lockKey, LOCK_TTL);
 
 		if (!acquired) {
@@ -189,4 +192,24 @@ public class OrderFacadeService {
 		}
 	}
 
+	/**
+	 * orderId 기반 멱등 처리
+	 * 		PG 호출에 실패해 결제가 붙지 못한 채 PENDING으로 남은 주문을 만료시킵니다. (외부 PG 호출 없음)
+	 * 		이떄, confirm()과 같은 Lock 키를 써서 진행 중인 확정 건을 만료시키지 않도록 방어
+	 */
+	public boolean expireOrphanedOrder(Long orderId) {
+
+		String lockKey = OrderRedisKeys.confirmLockKey(orderId);
+		boolean acquired = redisLockService.tryLock(lockKey, LOCK_TTL);
+
+		if (!acquired) {
+			throw new GeneralException(OrderErrorCode.ORDER_IN_PROGRESS);
+		}
+
+		try {
+			return orderCommandService.expireOrder(orderId);
+		} finally {
+			redisLockService.releaseLock(lockKey);
+		}
+	}
 }
