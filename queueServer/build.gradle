@@ -39,6 +39,7 @@ dependencies {
 	// Actuator + Micrometer + Prometheus
 	implementation 'org.springframework.boot:spring-boot-starter-actuator'
 	implementation 'io.micrometer:micrometer-registry-prometheus'
+	implementation 'io.micrometer:micrometer-java21'
 
 	// Test Container
 	testImplementation 'org.testcontainers:junit-jupiter'
