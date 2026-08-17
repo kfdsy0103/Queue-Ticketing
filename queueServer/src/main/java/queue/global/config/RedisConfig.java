@@ -25,8 +25,8 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class RedisConfig {
 
-	private static final int CONNECTION_POOL_SIZE = 128;
-	private static final int CONNECTION_MIN_IDLE_SIZE = 32;
+	private static final int CONNECTION_POOL_SIZE = 256;
+	private static final int CONNECTION_MIN_IDLE_SIZE = 128;
 
 	@Value("${spring.data.redis.host}")
 	private String host;
