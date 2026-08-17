@@ -25,6 +25,9 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class RedisConfig {
 
+	private static final int CONNECTION_POOL_SIZE = 128;
+	private static final int CONNECTION_MIN_IDLE_SIZE = 32;
+
 	@Value("${spring.data.redis.host}")
 	private String host;
 	@Value("${spring.data.redis.port}")
@@ -35,6 +38,8 @@ public class RedisConfig {
 		Config config = new Config();
 		config.useSingleServer()
 			.setAddress("redis://" + host + ":" + port)
+			.setConnectionPoolSize(CONNECTION_POOL_SIZE)
+			.setConnectionMinimumIdleSize(CONNECTION_MIN_IDLE_SIZE)
 			.setTimeout(10000);
 		return Redisson.create(config);
 	}
