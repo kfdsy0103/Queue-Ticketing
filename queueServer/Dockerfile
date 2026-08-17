@@ -6,4 +6,4 @@ COPY build/libs/queue.jar queue.jar
 # 운영 8080, 로컬은 8081
 EXPOSE 8080
 
-ENTRYPOINT ["java", "-Xms512m", "-Xmx512m", "-jar", "-Dspring.profiles.active=prod", "-Duser.timezone=Asia/Seoul", "-Dsun.net.inetaddr.ttl=60", "/app/queue.jar"]
+ENTRYPOINT ["java", "-Xms512m", "-Xmx1024m", "-jar", "-Dspring.profiles.active=prod", "-Duser.timezone=Asia/Seoul", "-Dsun.net.inetaddr.ttl=60", "/app/queue.jar"]
