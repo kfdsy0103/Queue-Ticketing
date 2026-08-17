@@ -19,3 +19,6 @@ spring:
   jwt:
     secret: large-ticketing-jwt-secret-key-local-dev-only-please-change
     expiration: 1800000
+  threads:
+    virtual:
+      enabled: true
