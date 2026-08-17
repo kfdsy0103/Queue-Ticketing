@@ -21,7 +21,7 @@ import ticketing.global.util.RedisUtil;
 public class QueuePromotionService {
 
 	private static final Duration ACTIVE_TTL = Duration.ofMinutes(7);
-	private static final long PROMOTION_BATCH_SIZE = 8;
+	private static final long PROMOTION_BATCH_SIZE = 10;
 	private static final RedisScript<Long> PROMOTE_SCRIPT =
 		RedisScript.of(new ClassPathResource("luaScripts/promote-queue.lua"), Long.class);
 
