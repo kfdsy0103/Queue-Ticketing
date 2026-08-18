@@ -16,8 +16,8 @@ import ticketing.domain.concert.scheduleprice.repository.SchedulePriceRepository
 import ticketing.domain.concert.scheduleseat.dto.FindMyOccupyDTO;
 import ticketing.domain.concert.scheduleseat.entity.ScheduleSeat;
 import ticketing.domain.concert.scheduleseat.repository.ScheduleSeatRepository;
-import ticketing.domain.concert.scheduleseat.repository.projection.ScheduleSeatGradeProjection;
-import ticketing.domain.concert.scheduleseat.repository.projection.ScheduleSeatStatusProjection;
+import ticketing.domain.concert.scheduleseat.projection.ScheduleSeatGradeProjection;
+import ticketing.domain.concert.scheduleseat.projection.ScheduleSeatStatusProjection;
 import ticketing.global.apiPayload.exception.GeneralException;
 
 @Service

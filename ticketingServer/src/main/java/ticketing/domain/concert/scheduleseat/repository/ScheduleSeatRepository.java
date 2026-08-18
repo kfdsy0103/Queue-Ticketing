@@ -8,8 +8,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import ticketing.domain.concert.scheduleseat.entity.ScheduleSeat;
-import ticketing.domain.concert.scheduleseat.repository.projection.ScheduleSeatGradeProjection;
-import ticketing.domain.concert.scheduleseat.repository.projection.ScheduleSeatStatusProjection;
+import ticketing.domain.concert.scheduleseat.projection.ScheduleSeatGradeProjection;
+import ticketing.domain.concert.scheduleseat.projection.ScheduleSeatStatusProjection;
 
 public interface ScheduleSeatRepository extends JpaRepository<ScheduleSeat, Long> {
 

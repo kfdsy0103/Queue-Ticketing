@@ -6,7 +6,7 @@ import java.util.List;
 import lombok.Builder;
 import lombok.Getter;
 import ticketing.domain.concert.scheduleseat.enums.SeatDisplayStatus;
-import ticketing.domain.concert.scheduleseat.repository.projection.ScheduleSeatStatusProjection;
+import ticketing.domain.concert.scheduleseat.projection.ScheduleSeatStatusProjection;
 
 public class FindAllDTO {
 
