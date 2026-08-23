@@ -68,7 +68,7 @@ public class QueueService {
 		String queueSessionId = UUID.randomUUID().toString();
 
 		long score = redisUtil.increment(counterKey);
-		redisUtil.zAdd(waitingKey, userId, score);
+		redisUtil.zAddIfAbsent(waitingKey, userId, score);
 		redisUtil.set(userInfoKey, queueSessionId, SESSION_TTL);	// 소유 중인 화면 (값 + TTL 설정)
 
 		String token = jwtTokenUtil.generateToken(Map.of(

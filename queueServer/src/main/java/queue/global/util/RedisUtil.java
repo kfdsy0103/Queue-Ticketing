@@ -15,10 +15,10 @@ public class RedisUtil {
 	private final RedisTemplate<String, Object> redisTemplate;
 
 	/**
-	 * Sorted Set에 값을 추가합니다. 이미 존재하면 score를 덮어씁니다. (ZADD)
+	 * Sorted Set에 값을 추가합니다. 이미 존재하면 무시합니다. (ZADD NX)
 	 */
-	public Boolean zAdd(String key, Object value, double score) {
-		return opsForZSet().add(key, value, score);
+	public Boolean zAddIfAbsent(String key, Object value, double score) {
+		return opsForZSet().addIfAbsent(key, value, score);
 	}
 
 	/**
