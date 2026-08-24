@@ -18,11 +18,11 @@ import ticketing.global.cache.enums.CacheType;
 
 @Slf4j
 @Component
-public class CaffeineCacheManager implements CacheManager {
+public class CaffeineCacheStore implements CacheStore {
 
 	private final Map<String, Cache<String, CacheEntry<?>>> caches = new HashMap<>();
 
-	public CaffeineCacheManager() {
+	public CaffeineCacheStore() {
 		// Local을 사용하는 캐시이면 해당 그룹을 카페인에 등록
 		for (CacheGroup group : CacheGroup.values()) {
 			if (group.useLocalCache()) {
@@ -36,7 +36,7 @@ public class CaffeineCacheManager implements CacheManager {
 			}
 		}
 
-		log.info("[CaffeineCacheManager] 로컬 캐시 초기화 완료. groups={}", this.caches.keySet());
+		log.info("[CaffeineCacheStore] 로컬 캐시 초기화 완료. groups={}", this.caches.keySet());
 	}
 
 	@Override
@@ -48,7 +48,7 @@ public class CaffeineCacheManager implements CacheManager {
 	public <T> CacheEntry<T> get(CacheGroup group, String cacheKey) {
 		Cache<String, CacheEntry<?>> cache = caches.get(group.getCacheName());
 		if (cache == null) {
-			log.error("[CaffeineCacheManager] 로컬 캐시를 쓰지 않는 캐시명입니다. cacheName={}", group.getCacheName());
+			log.error("[CaffeineCacheStore] 로컬 캐시를 쓰지 않는 캐시명입니다. cacheName={}", group.getCacheName());
 			throw new GeneralException(CacheErrorCode.LOCAL_CACHE_NOT_FOUND);
 		}
 		return (CacheEntry<T>) cache.getIfPresent(cacheKey);
@@ -89,7 +89,7 @@ public class CaffeineCacheManager implements CacheManager {
 
 		Cache<String, CacheEntry<?>> cache = caches.get(cacheName);
 		if (cache == null) {
-			log.warn("[CaffeineCacheManager] 로컬 캐시를 쓰지 않는 캐시명입니다. cacheName={}", cacheName);
+			log.warn("[CaffeineCacheStore] 로컬 캐시를 쓰지 않는 캐시명입니다. cacheName={}", cacheName);
 			return;
 		}
 

@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import ticketing.global.cache.enums.CacheGroup;
-import ticketing.global.cache.manager.CaffeineCacheManager;
+import ticketing.global.cache.manager.CaffeineCacheStore;
 
 @Slf4j
 @Component
@@ -16,7 +16,7 @@ import ticketing.global.cache.manager.CaffeineCacheManager;
 public class CacheEvictSubscriber implements MessageListener {
 
 	private final RedisTemplate<String, Object> redisTemplate;
-	private final CaffeineCacheManager caffeineCacheManager;
+	private final CaffeineCacheStore caffeineCacheStore;
 	private final CacheEvictPublisher cacheEvictPublisher;
 
 	@Override
@@ -39,7 +39,7 @@ public class CacheEvictSubscriber implements MessageListener {
 				return;
 			}
 
-			caffeineCacheManager.evict(group, evictMessage.getCacheKey());
+			caffeineCacheStore.evict(group, evictMessage.getCacheKey());
 			log.debug("[CacheEvictSubscriber] 로컬 캐시를 무효화했습니다. cacheName={}, cacheKey={}", evictMessage.getCacheName(), evictMessage.getCacheKey());
 		} catch (Exception e) {
 			log.error("[CacheEvictSubscriber] onMessage() 무효화 메시지 처리 중 오류", e);

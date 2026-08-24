@@ -1,5 +1,6 @@
 package ticketing.domain.concert.concertschedule.service;
 
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -10,8 +11,7 @@ import ticketing.domain.concert.concertschedule.dto.FindDTO;
 import ticketing.domain.concert.concertschedule.exception.ConcertScheduleErrorCode;
 import ticketing.domain.concert.concertschedule.repository.ConcertScheduleRepository;
 import ticketing.global.apiPayload.exception.GeneralException;
-import ticketing.global.cache.service.CacheService;
-import ticketing.global.cache.enums.CacheGroup;
+import ticketing.global.cache.constants.CacheName;
 
 @Slf4j
 @Service
@@ -20,20 +20,16 @@ import ticketing.global.cache.enums.CacheGroup;
 public class ConcertScheduleQueryService {
 
 	private final ConcertScheduleRepository concertScheduleRepository;
-	private final CacheService cacheService;
 
 	/**
-	 * PER 예방 및 분산락 기반 스템피드 대응 캐시 적용
+	 * PER 예방 및 분산락 기반 스템피드 대응 캐시 적용 (TieredCache)
 	 * 		cache:concertScheduleDetail:{concertScheduleId}
 	 */
+	@Cacheable(cacheNames = CacheName.CONCERT_SCHEDULE_DETAIL, key = "#command.concertScheduleId", sync = true)
 	public FindDTO.Result find(FindDTO.Command command) {
-		return cacheService.getCacheWithPER(
-			CacheGroup.CONCERT_SCHEDULE_DETAIL,
-			command.getConcertScheduleId().toString(),
-			() -> concertScheduleRepository.findById(command.getConcertScheduleId())
-				.map(FindDTO.Result::from)
-				.orElseThrow(() -> new GeneralException(ConcertScheduleErrorCode.CONCERT_SCHEDULE_NOT_FOUND))
-		);
+		return concertScheduleRepository.findById(command.getConcertScheduleId())
+			.map(FindDTO.Result::from)
+			.orElseThrow(() -> new GeneralException(ConcertScheduleErrorCode.CONCERT_SCHEDULE_NOT_FOUND));
 	}
 
 	public FindAllDTO.Result findAll(FindAllDTO.Command command) {
@@ -45,13 +41,10 @@ public class ConcertScheduleQueryService {
 	/**
 	 * 티켓 오픈 10분 직전부터 스케쥴러에서 호출되는 워밍업 메서드.
 	 */
-	public void warmUpCache(Long concertScheduleId) {
-		cacheService.getCacheWithPER(
-			CacheGroup.CONCERT_SCHEDULE_DETAIL,
-			concertScheduleId.toString(),
-			() -> concertScheduleRepository.findById(concertScheduleId)
-				.map(FindDTO.Result::from)
-				.orElseThrow(() -> new GeneralException(ConcertScheduleErrorCode.CONCERT_SCHEDULE_NOT_FOUND))
-		);
+	@Cacheable(cacheNames = CacheName.CONCERT_SCHEDULE_DETAIL, key = "#concertScheduleId", sync = true)
+	public FindDTO.Result warmUpCache(Long concertScheduleId) {
+		return concertScheduleRepository.findById(concertScheduleId)
+			.map(FindDTO.Result::from)
+			.orElseThrow(() -> new GeneralException(ConcertScheduleErrorCode.CONCERT_SCHEDULE_NOT_FOUND));
 	}
 }

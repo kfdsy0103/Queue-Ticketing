@@ -14,7 +14,7 @@ import ticketing.global.util.RedisUtil;
 
 @Component
 @RequiredArgsConstructor
-public class RedisCacheManager implements CacheManager {
+public class RedisCacheStore implements CacheStore {
 
 	private final RedisUtil redisUtil;
 

@@ -4,10 +4,10 @@ import ticketing.global.cache.dto.CacheEntry;
 import ticketing.global.cache.enums.CacheGroup;
 import ticketing.global.cache.enums.CacheType;
 
-public interface CacheManager {
+public interface CacheStore {
 
 	/**
-	 * LOCAL or GLOBAL 타입별로 전략 작성, CacheService에서 캐시 유형에 따라 오케스트레이션하도록
+	 * LOCAL or GLOBAL 타입별로 전략 작성, TieredCache에서 캐시 유형에 따라 오케스트레이션하도록
 	 */
 	CacheType getSupportedType();
 
