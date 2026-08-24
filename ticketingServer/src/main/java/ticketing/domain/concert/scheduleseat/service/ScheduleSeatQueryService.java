@@ -6,6 +6,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,11 +15,12 @@ import ticketing.domain.concert.scheduleprice.entity.SchedulePrice;
 import ticketing.domain.concert.scheduleprice.exception.SchedulePriceErrorCode;
 import ticketing.domain.concert.scheduleprice.repository.SchedulePriceRepository;
 import ticketing.domain.concert.scheduleseat.dto.FindMyOccupyDTO;
+import ticketing.domain.concert.scheduleseat.dto.ScheduleSeatLayoutDTO;
 import ticketing.domain.concert.scheduleseat.entity.ScheduleSeat;
 import ticketing.domain.concert.scheduleseat.repository.ScheduleSeatRepository;
 import ticketing.domain.concert.scheduleseat.projection.ScheduleSeatGradeProjection;
-import ticketing.domain.concert.scheduleseat.projection.ScheduleSeatStatusProjection;
 import ticketing.global.apiPayload.exception.GeneralException;
+import ticketing.global.cache.constants.CacheName;
 
 @Service
 @RequiredArgsConstructor
@@ -30,9 +32,15 @@ public class ScheduleSeatQueryService {
 
 	/**
 	 * 좌석 배치도에 필요한 특정 회차의 좌석 상태 정보를 모두 조회합니다.
+	 * 판매(SOLD) 반영이 최대 캐시 TTL만큼 지연될 수 있으나, 실제 점유(occupy)는 DB를 직접 재검증하므로
+	 * 조회 화면의 표시 지연일 뿐 판매 정합성에는 영향이 없다.
+	 * 		cache:scheduleSeatLayout:{concertScheduleId}
 	 */
-	public List<ScheduleSeatStatusProjection> findSeatStatuses(Long concertScheduleId) {
-		return scheduleSeatRepository.findSeatStatusesByConcertScheduleId(concertScheduleId);
+	@Cacheable(cacheNames = CacheName.SCHEDULE_SEAT_LAYOUT, key = "#concertScheduleId", sync = true)
+	public List<ScheduleSeatLayoutDTO.Item> findSeatStatuses(Long concertScheduleId) {
+		return scheduleSeatRepository.findSeatStatusesByConcertScheduleId(concertScheduleId).stream()
+			.map(ScheduleSeatLayoutDTO.Item::from)
+			.toList();
 	}
 
 	/**

@@ -24,11 +24,11 @@ import ticketing.domain.concert.scheduleseat.dto.FindAllDTO;
 import ticketing.domain.concert.scheduleseat.dto.FindMyOccupyDTO;
 import ticketing.domain.concert.scheduleseat.dto.FindRemainingDTO;
 import ticketing.domain.concert.scheduleseat.dto.OccupyDTO;
+import ticketing.domain.concert.scheduleseat.dto.ScheduleSeatLayoutDTO;
 import ticketing.domain.concert.scheduleseat.entity.ScheduleSeat;
 import ticketing.domain.concert.scheduleseat.enums.SeatDisplayStatus;
 import ticketing.domain.concert.scheduleseat.exception.ScheduleSeatErrorCode;
 import ticketing.domain.concert.scheduleseat.projection.ScheduleSeatGradeProjection;
-import ticketing.domain.concert.scheduleseat.projection.ScheduleSeatStatusProjection;
 import ticketing.domain.queue.constants.QueueRedisKeys;
 import ticketing.domain.queue.exception.QueueErrorCode;
 import ticketing.global.apiPayload.code.GeneralErrorCode;
@@ -115,8 +115,8 @@ public class ScheduleSeatFacadeService {
 		validateTokenOwner(command.getUserId(), command.getToken());
 		validateActiveQueue(command.getConcertScheduleId(), command.getUserId(), command.getToken());
 
-		// 필요 컬럼만 프로젝션 조회
-		List<ScheduleSeatStatusProjection> scheduleSeatStatuses = scheduleSeatQueryService.findSeatStatuses(command.getConcertScheduleId());
+		// 좌석 배치(정적 정보)는 캐시에서 조회
+		List<ScheduleSeatLayoutDTO.Item> scheduleSeatStatuses = scheduleSeatQueryService.findSeatStatuses(command.getConcertScheduleId());
 		if (scheduleSeatStatuses.isEmpty()) {
 			return FindAllDTO.Result.empty();
 		}

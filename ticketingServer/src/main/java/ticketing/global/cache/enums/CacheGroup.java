@@ -23,6 +23,13 @@ public enum CacheGroup {
 		Duration.ofMinutes(1),
 		Duration.ofSeconds(10),
 		1000L
+	),
+	SCHEDULE_SEAT_LAYOUT(
+		CacheName.SCHEDULE_SEAT_LAYOUT,
+		CacheType.COMPOSITE,
+		Duration.ofSeconds(10),
+		Duration.ofSeconds(3),
+		1000L
 	);
 
 	private final String cacheName;
