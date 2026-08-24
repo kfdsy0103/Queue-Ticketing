@@ -21,8 +21,6 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import ticketing.domain.concert.concert.entity.Concert;
-import ticketing.domain.concert.concertschedule.entity.ConcertSchedule;
 import ticketing.domain.concert.scheduleprice.repository.SchedulePriceRepository;
 import ticketing.domain.concert.scheduleseat.entity.ScheduleSeat;
 import ticketing.domain.concert.scheduleseat.exception.ScheduleSeatErrorCode;
@@ -37,17 +35,13 @@ import ticketing.domain.order.orderitem.repository.OrderItemRepository;
 import ticketing.domain.payment.entity.Payment;
 import ticketing.domain.payment.exception.PaymentErrorCode;
 import ticketing.domain.payment.repository.PaymentRepository;
-import ticketing.domain.seatgrade.entity.SeatGrade;
 import ticketing.domain.user.entity.User;
 import ticketing.domain.user.repository.UserRepository;
-import ticketing.domain.venue.seat.entity.Seat;
-import ticketing.domain.venue.venue.entity.Venue;
 import ticketing.fixture.ConcertFixture;
 import ticketing.fixture.OrderFixture;
 import ticketing.fixture.PaymentFixture;
 import ticketing.fixture.ScheduleSeatFixture;
 import ticketing.fixture.UserFixture;
-import ticketing.fixture.VenueFixture;
 import ticketing.global.apiPayload.exception.GeneralException;
 import ticketing.global.util.RedisUtil;
 
@@ -87,22 +81,11 @@ class OrderCommandServiceTest {
 	private ArgumentCaptor<List<OrderItem>> orderItemsCaptor;
 
 	private static ScheduleSeat availableSeat(Long scheduleSeatId) {
-		return ScheduleSeatFixture.availableScheduleSeat(scheduleSeatId, concertSchedule(), seat(scheduleSeatId));
+		return ScheduleSeatFixture.availableScheduleSeat(scheduleSeatId);
 	}
 
 	private static ScheduleSeat soldSeat(Long scheduleSeatId) {
-		return ScheduleSeatFixture.soldScheduleSeat(scheduleSeatId, concertSchedule(), seat(scheduleSeatId));
-	}
-
-	private static ConcertSchedule concertSchedule() {
-		Concert concert = ConcertFixture.concert(1L, VenueFixture.venue(1L));
-		return ConcertFixture.concertSchedule(1L, concert);
-	}
-
-	private static Seat seat(Long seatId) {
-		Venue venue = VenueFixture.venue(1L);
-		SeatGrade seatGrade = VenueFixture.seatGrade(1L, "VIP");
-		return VenueFixture.seat(seatId, venue, seatGrade, "A" + seatId);
+		return ScheduleSeatFixture.soldScheduleSeat(scheduleSeatId);
 	}
 
 	@Nested
@@ -132,7 +115,7 @@ class OrderCommandServiceTest {
 			given(userRepository.findById(1L)).willReturn(Optional.of(UserFixture.user(1L)));
 			given(scheduleSeatRepository.findAllByIdInWithScheduleAndSeatGrade(List.of(10L)))
 				.willReturn(List.of(availableSeat(10L)));
-			given(redisUtil.<Long>execute(any(), anyList(), any())).willReturn(0L);
+			given(redisUtil.<Long>execute(any(), anyList(), any(Object[].class))).willReturn(0L);
 
 			// when
 			Throwable thrown = catchThrowable(
@@ -153,7 +136,7 @@ class OrderCommandServiceTest {
 			given(userRepository.findById(1L)).willReturn(Optional.of(user));
 			given(scheduleSeatRepository.findAllByIdInWithScheduleAndSeatGrade(List.of(10L, 11L)))
 				.willReturn(List.of(first, second));
-			given(redisUtil.<Long>execute(any(), anyList(), any())).willReturn(1L);
+			given(redisUtil.<Long>execute(any(), anyList(), any(Object[].class))).willReturn(1L);
 			given(schedulePriceRepository.findAllByConcertScheduleIdIn(any()))
 				.willReturn(List.of(ConcertFixture.schedulePrice(
 					1L, first.getConcertSchedule(), first.getSeat().getSeatGrade(), SEAT_PRICE)));
@@ -259,7 +242,7 @@ class OrderCommandServiceTest {
 				.willReturn(Optional.of(PaymentFixture.readyPayment(1L, order, SEAT_PRICE)));
 			given(orderItemRepository.findAllByOrderIdWithScheduleSeat(1L))
 				.willReturn(List.of(OrderFixture.pendingOrderItem(1L, order, availableSeat(10L), SEAT_PRICE)));
-			given(redisUtil.<Long>execute(any(), anyList(), any())).willReturn(1L);
+			given(redisUtil.<Long>execute(any(), anyList(), any(Object[].class))).willReturn(1L);
 
 			// when
 			ConfirmDTO.Validated validated = orderCommandService.validateConfirm(OrderFixture.confirmCommand(1L, 1L));
