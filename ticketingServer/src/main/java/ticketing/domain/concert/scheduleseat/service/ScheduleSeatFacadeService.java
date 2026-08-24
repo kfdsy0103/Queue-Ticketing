@@ -41,8 +41,7 @@ import ticketing.global.util.RedisUtil;
 @RequiredArgsConstructor
 public class ScheduleSeatFacadeService {
 
-	private static final Duration OCCUPY_HARD_TTL = Duration.ofMinutes(6);	// 실제 물리 TTL
-	private static final Duration OCCUPY_SOFT_TTL = Duration.ofMinutes(5);	// 결제까지 걸리는 시간을 고려하여, Race Condition 방지를 위한 Soft TTL
+	private static final Duration OCCUPY_TTL = Duration.ofMinutes(5);	// 좌석 점유 유지 TTL
 
 	private static final RedisScript<Long> OCCUPY_SCRIPT =
 		RedisScript.of(new ClassPathResource("luaScripts/occupy-seats.lua"), Long.class);
@@ -82,10 +81,10 @@ public class ScheduleSeatFacadeService {
 
 		// ARGV 생성
 		long now = System.currentTimeMillis();
-		long expiresAtMillis = now + OCCUPY_HARD_TTL.toMillis();
+		long expiresAtMillis = now + OCCUPY_TTL.toMillis();
 		List<Object> args = new ArrayList<>();
 		args.add(command.getUserId());
-		args.add(OCCUPY_HARD_TTL.toSeconds());
+		args.add(OCCUPY_TTL.toSeconds());
 		args.add(expiresAtMillis);
 		args.addAll(command.getScheduleSeatIds());
 
@@ -99,7 +98,7 @@ public class ScheduleSeatFacadeService {
 
 		return OccupyDTO.Result.of(
 			command.getScheduleSeatIds(),
-			toLocalDateTime(now + OCCUPY_SOFT_TTL.toMillis())
+			toLocalDateTime(now + OCCUPY_TTL.toMillis())
 		);
 	}
 
@@ -207,15 +206,14 @@ public class ScheduleSeatFacadeService {
 				continue;
 			}
 
-			// 사용자에게 보여지는 결제까지 남은 시간은 Hard TTL 6분이 아니라, Network Timeout을 고려하여 5분으로 표기 - 돈 출금 approve 단계에서 race condition 방지 -> 발생해도 DB 유니크 제약이 최종 방어
-			long softExpiresAtMillis = tuple.getScore().longValue() - (OCCUPY_HARD_TTL.toMillis() - OCCUPY_SOFT_TTL.toMillis());
-			if (softExpiresAtMillis <= now) {
+			long expiresAtMillis = tuple.getScore().longValue();
+			if (expiresAtMillis <= now) {
 				continue;
 			}
 
 			expireTimePerSeat.put(
 				Long.valueOf(tuple.getValue().toString()),	// id
-				toLocalDateTime(softExpiresAtMillis)		// 사용자에게 보여줄 남은 시간
+				toLocalDateTime(expiresAtMillis)			// 사용자에게 보여줄 남은 시간
 			);
 		}
 

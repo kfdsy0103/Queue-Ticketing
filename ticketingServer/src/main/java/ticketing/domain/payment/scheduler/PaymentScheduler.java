@@ -20,7 +20,7 @@ import ticketing.global.apiPayload.exception.GeneralException;
 @RequiredArgsConstructor
 public class PaymentScheduler {
 
-	// 처리되지 못하고 (서버 크래시, 네트워크 문제 등 ..) 잔존해있는 Payment 조회 시 기준이 되는 시간. Redis 점유 TTL(6분) 보다 길게 설정
+	// 처리되지 못하고 (서버 크래시, 네트워크 문제 등 ..) 잔존해있는 Payment 조회 시 기준이 되는 시간. Redis 점유 TTL(5분) 보다 길게 설정
 	private static final Duration STALE_READY_THRESHOLD = Duration.ofMinutes(10);
 	// 환불 요청을 했는데 네트워크나 크래시 등으로 인해, CANCEL_REQUESTED 상태로 잔존해있는 Payment 조회 기준 시간
 	private static final Duration STALE_CANCEL_THRESHOLD = Duration.ofMinutes(5);
