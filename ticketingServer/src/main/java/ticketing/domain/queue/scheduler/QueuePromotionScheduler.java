@@ -26,7 +26,7 @@ public class QueuePromotionScheduler {
 	 * 회차별로 1초마다 정해진 인원을 입장 처리(Active)합니다.
 	 * ShedLock으로 다중 인스턴스에서의 스케쥴러 동작 제어 추가
 	*/
-	@Scheduled(fixedDelay = 1000)
+	@Scheduled(cron = "${ticketing.scheduler.queue.promotion-cron:* * * * * *}")
 	@SchedulerLock(name = "queuePromotionScheduler", lockAtLeastFor = "PT1S", lockAtMostFor = "PT30S")
 	public void promoteScheduler() {
 		LocalDateTime now = LocalDateTime.now();

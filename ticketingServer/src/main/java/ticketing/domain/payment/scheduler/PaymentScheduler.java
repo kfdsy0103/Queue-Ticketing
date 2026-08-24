@@ -33,7 +33,7 @@ public class PaymentScheduler {
 	 * 		동작: 1분마다 READY 상태로 STALE_READY_THRESHOLD 이상 남아있는 Payment 건을 조회하고, 각 건의 PG 상태를 확인 후 확정 처리합니다.
 	 * 		+ ShedLock으로 다중 인스턴스에서의 스케쥴러 동작 제어 추가
 	 */
-	@Scheduled(fixedDelay = 60000)
+	@Scheduled(cron = "${ticketing.scheduler.payment.reconcile-ready-cron:0 * * * * *}")
 	@SchedulerLock(name = "reconcileReadyPayments", lockAtLeastFor = "PT10S", lockAtMostFor = "PT50S")
 	public void reconcileReadyPayments() {
 
@@ -55,7 +55,7 @@ public class PaymentScheduler {
 	/**
 	 * PG 환불 요청 이후 서버 크래시 등으로 로컬에 반영되지 못한 취소 건을 마무리하는 스케쥴러입니다.
 	 */
-	@Scheduled(fixedDelay = 60000)
+	@Scheduled(cron = "${ticketing.scheduler.payment.reconcile-cancel-requested-cron:0 * * * * *}")
 	@SchedulerLock(name = "reconcileCancelRequestedPayments", lockAtLeastFor = "PT10S", lockAtMostFor = "PT50S")
 	public void reconcileCancelRequestedPayments() {
 

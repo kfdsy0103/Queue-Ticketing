@@ -24,8 +24,6 @@ public class ConcertScheduleScheduler {
 
 	// 워밍업을 시작할 시간대 설정, 10분 전부터 워밍업하도록 설정
 	private static final Duration WARMUP_BEFORE_OPEN = Duration.ofMinutes(10);
-	// 10분 전부터 10초 마다 워밍업 조회 시도
-	private static final long WARMUP_INTERVAL_MS = 10000;
 
 	private final CacheWarmUpState cacheWarmUpState;
 	private final ConcertScheduleRepository concertScheduleRepository;
@@ -36,7 +34,7 @@ public class ConcertScheduleScheduler {
 	 * 스템피드 방지를 위해 티켓 오픈이 10분 안으로 다가온 회차의 캐시를 미리 갱신해둡니다.
 	 * 오픈 이후에는 조회가 활발할 것으로 예상되므로 -> PER에서 자연스럽게 갱신됨
 	 */
-	@Scheduled(fixedDelay = WARMUP_INTERVAL_MS)
+	@Scheduled(cron = "${ticketing.scheduler.concert-schedule.warmup-cron:*/10 * * * * *}")
 	public void warmUpConcertScheduleCaches() {
 
 		LocalDateTime now = LocalDateTime.now();

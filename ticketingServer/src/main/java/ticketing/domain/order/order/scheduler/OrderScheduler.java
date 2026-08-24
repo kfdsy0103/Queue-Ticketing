@@ -27,7 +27,7 @@ public class OrderScheduler {
 	/**
 	 * create()에서 PG 호출에 실패하여 PENDING으로 잔존해있는 Order건을 주기적으로 처리합니다.
 	 */
-	@Scheduled(fixedDelay = 60000)
+	@Scheduled(cron = "${ticketing.scheduler.order.expire-orphaned-cron:0 * * * * *}")
 	@SchedulerLock(name = "processOrphanedPendingOrder", lockAtLeastFor = "PT10S", lockAtMostFor = "PT50S")
 	public void processOrphanedPendingOrders() {
 
