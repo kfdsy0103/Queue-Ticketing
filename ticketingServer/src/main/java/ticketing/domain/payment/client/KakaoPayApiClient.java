@@ -26,16 +26,7 @@ import ticketing.global.apiPayload.exception.GeneralException;
 @Component
 public class KakaoPayApiClient {
 
-	// 실제 PG 연동시에는 타임아웃 설정 및 이에 맞춰 TTL 맞춰야 할 필요.
-	//
-	// Race Condition Case
-	//
-	// A: 점유 -> 생성 -> 점유 만료 -> 네트워크 지연 -> 주문 Confirm
-	// B:                  점유 -> 생성 -> 주문 Confirm
-	//
-	// 따라서 점유한 유저에게는 HardTTL이 아니라, Client의 타임아웃만큼 여유를 두어 SoftTTL을 보여주도록 하여 분쟁 방지
-	// 만약 두 명 다 주문됐더라도, 최종적으로는 orderItem 쪽 DB 유니크 제약이 방어해준다.
-
+	// 실제 PG 연동시에는 타임아웃 설정 필요
 	// private final RestClient restClient;
 
 	/**
