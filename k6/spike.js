@@ -59,29 +59,16 @@ const errorCount = new Counter('error_count');
 
 export const options = {
   scenarios: {
-    // 워밍업: JIT 컴파일·커넥션 풀·DB 커넥션·캐시를 데우는 구간.
-    // phase 태그를 붙여, 이 구간의 느린 응답이 지표와 threshold 에 섞이지 않도록 분리한다.
-    warmup: {
-      executor: 'constant-vus',
-      vus: 5,
-      duration: '30s',
-      tags: { phase: 'warmup' },
-    },
-    // 실제 측정 구간. 워밍업이 끝나는 30초 지점부터 시작하며,
-    // startVUs 를 워밍업 VU 수에 맞춰 0 으로 떨어뜨렸다 다시 올리지 않는다.
     main: {
       executor: 'ramping-vus',
-      startTime: '30s',
-      startVUs: 5,
       stages: [
         { target: TARGET, duration: RAMP_UP_DURATION },   // 스파이크 구간 (3초 만에 1만 VU까지 끌어올린다)
         { target: TARGET, duration: HOLD_DURATION },      // 유지 시간
-        { target: 0, duration: '30s' },                   // graceful 종료: 진행 중인 요청을 마치고 내려간다
+        { target: 0, duration: '30s' },                   // graceful 종료
       ],
       tags: { phase: 'main' },
     },
   },
-  // 한계 관측이 목적이므로 thresholds를 두지 않는다
   systemTags: ['proto', 'subproto', 'status', 'method', 'name', 'group', 'check', 'error', 'error_code', 'tls_version', 'scenario', 'service', 'expected_response'],
 };
 
