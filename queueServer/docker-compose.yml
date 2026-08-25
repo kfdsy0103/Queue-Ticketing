@@ -6,20 +6,28 @@ services:
       - .env
     ports:
       - "8080:8080"
+    environment:
+      TZ: Asia/Seoul
+      JAVA_TOOL_OPTIONS: >-
+        -Xms1024m
+        -Xmx1024m
+        -XX:+HeapDumpOnOutOfMemoryError
+        -XX:HeapDumpPath=/dump
     volumes:
-      - ./logs:/app/logs  # EC2에 로그 파일 마운트 (alloy도 동일한 바인드 마운트해야함에 유의)
+      - ./logs:/app/logs  # alloy가 읽을 수 있도록 마운트
+      - ./dump:/dump
     restart: unless-stopped
 
   alloy:
     image: grafana/alloy:latest
     container_name: alloy
     environment:
-      - ALLOY_ENV=prod  # alloy config에서 운영 환경을 인식하고 라벨로 활용하기 위함
+      - ALLOY_ENV=prod  # alloy config 에서 운영 환경을 라벨로 구분하기 위함
     ports:
       - "12345:12345"
     volumes:
-      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro   # alloy config 마운트
-      - ./logs:/var/log/spring:ro   # spring에서 logback이 남기는 파일 로그를 읽기 위함 (app도 ./logs로 바인드 마운트했음에 유의)
+      - ./alloy/config.alloy:/etc/alloy/config.alloy:ro
+      - ./logs:/var/log/spring:ro  # app 이 남긴 파일 로그를 읽는다
     restart: unless-stopped
 
   node-exporter:
@@ -28,8 +36,8 @@ services:
     image: prom/node-exporter:latest
     container_name: node-exporter
     restart: unless-stopped
-    pid: host # 컨테이너 내부가 아닌, 호스트 레벨의 프로세스를 보도록
-    network_mode: host # 네트워크도 호스트 레벨의 네트워크를 따르도록
+    pid: host           # 컨테이너가 아닌 호스트 레벨 프로세스를 보도록
+    network_mode: host
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
