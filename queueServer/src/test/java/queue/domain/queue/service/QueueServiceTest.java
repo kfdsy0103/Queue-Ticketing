@@ -13,6 +13,7 @@ import static org.mockito.Mockito.verify;
 import java.time.Duration;
 import java.util.Map;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -21,7 +22,6 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.ZSetOperations;
@@ -55,9 +55,6 @@ class QueueServiceTest {
 	private static final String ACTIVE_KEY = QueueRedisKeys.activeKey(SCHEDULE_ID, USER_ID);
 	private static final String USER_INFO_KEY = QueueRedisKeys.userInfoKey(SCHEDULE_ID, USER_ID);
 
-	@InjectMocks
-	private QueueService queueService;
-
 	@Mock
 	private RedisUtil redisUtil;
 
@@ -72,6 +69,14 @@ class QueueServiceTest {
 
 	@Captor
 	private ArgumentCaptor<String> sessionIdCaptor;
+
+	// activeTtlSeconds 가 생성자로 주입되는 primitive 라 @InjectMocks 로는 채울 수 없다.
+	private QueueService queueService;
+
+	@BeforeEach
+	void setUp() {
+		queueService = new QueueService(redisUtil, jwtTokenUtil, ACTIVE_TTL.toSeconds());
+	}
 
 	private void givenTokenClaims(Long tokenUserId, String tokenSessionId) {
 		given(jwtTokenUtil.getClaim(QueueFixture.TOKEN, "concertScheduleId", Long.class)).willReturn(SCHEDULE_ID);

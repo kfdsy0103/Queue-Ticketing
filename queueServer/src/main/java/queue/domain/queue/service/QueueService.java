@@ -4,9 +4,9 @@ import java.time.Duration;
 import java.util.Map;
 import java.util.UUID;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import queue.domain.queue.constants.QueueRedisKeys;
 import queue.domain.queue.dto.EnterDTO;
@@ -22,17 +22,33 @@ import queue.global.util.RedisUtil;
 
 @Slf4j
 @Service
-@RequiredArgsConstructor
 public class QueueService {
 
 	// TODO: 실제 경로로 변경
 	private static final String REDIRECT_ENDPOINT = "/frontend/booking";
 	private static final Duration SESSION_TTL = Duration.ofMinutes(3);
-	private static final Duration ACTIVE_TTL = Duration.ofMinutes(7);
 	private static final long JITTER_FREE_POSITION = 100;
 
 	private final RedisUtil redisUtil;
 	private final JwtTokenUtil jwtTokenUtil;
+
+	/**
+	 * 작업열(Active) 슬롯의 유지 시간. 기본 420초 = 7분.
+	 * 티켓팅 서버의 승격 스케쥴러도 같은 activeKey 에 TTL 을 거므로,
+	 * 두 서버가 같은 값(queue.active-ttl-seconds)을 보도록 맞춰야 한다.
+	 * 어긋나면 이어받기 직후 세션이 예상보다 일찍 끊기거나 늦게까지 남는다.
+	 */
+	private final Duration activeTtl;
+
+	public QueueService(
+		RedisUtil redisUtil,
+		JwtTokenUtil jwtTokenUtil,
+		@Value("${queue.active-ttl-seconds:420}") long activeTtlSeconds
+	) {
+		this.redisUtil = redisUtil;
+		this.jwtTokenUtil = jwtTokenUtil;
+		this.activeTtl = Duration.ofSeconds(activeTtlSeconds);
+	}
 
 	/**
 	 * 대기열 입장을 처리합니다.
@@ -157,7 +173,7 @@ public class QueueService {
 		// Active로 대기열 통과했으면 점유 작업 시에도 sessionId 영향받도록 반영
 		isActive = redisUtil.hasKey(activeKey);
 		if (isActive) {
-			redisUtil.set(activeKey, queueSessionId, ACTIVE_TTL);
+			redisUtil.set(activeKey, queueSessionId, activeTtl);
 		}
 
 		String token = jwtTokenUtil.generateToken(Map.of(
