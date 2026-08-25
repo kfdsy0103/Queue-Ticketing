@@ -2,14 +2,7 @@
 // 대기열 입장인 enter API, 대기열 순번 조회인 status API를 호출하여 대기열 서버의 TPS 측정을 하기 위함
 //
 // [.env]
-// K6_WEB_DASHBOARD=true                                                  # 5665 실시간 웹 대시보드 노출
-// K6_PROMETHEUS_RW_SERVER_URL=http://<prometheus-host>:9090/api/v1/write # Prometheus 원격 Write
-// K6_PROMETHEUS_RW_TREND_STATS="p(95),p(99),avg,max"                     # 전송할 Trend 통계
-// BASE_URL=https://...                                                   # 대기열 서버 URL
-// CONCERT_SCHEDULE_ID=1                                                  # 콘서트 회차 ID
-// TARGET=10000                                                           # 전체 VU 수
-// RAMP_UP_DURATION=3s                                                    # ramp up 시간
-// HOLD_DURATION=5m                                                       # 유지 시간
+// 필요한 환경변수와 예시 값은 env-example.md 참고
 //
 // [커맨드]
 // set -a && source .env
