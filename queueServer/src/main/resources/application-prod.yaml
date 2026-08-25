@@ -18,6 +18,9 @@ spring:
   jwt:
     secret: ${JWT_SECRET}
     expiration: 1800000
+  threads:
+    virtual:
+      enabled: true
 
 # Prometheus
 management:
@@ -38,6 +41,3 @@ management:
     tags:
       application: queue      # Grafana에서 앱 식별용 (티켓팅 서버는 ticketing)
       namespace: ticketing    # namespace
-  threads:
-    virtual:
-      enabled: true
