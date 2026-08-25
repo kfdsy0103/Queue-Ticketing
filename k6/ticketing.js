@@ -56,20 +56,40 @@ const confirmDuration = new Trend('confirm_duration', true);                  //
 const errorCount = new Counter('error_count');
 
 export const options = {
-  stages: [
-    { target: __ENV.TARGET, duration: __ENV.RAMP_UP_DURATION },   // 램프업 시간
-    { target: __ENV.TARGET, duration: __ENV.HOLD_DURATION },      // 유지 시간
-  ],
+  scenarios: {
+    // 워밍업: JIT 컴파일·커넥션 풀·DB 커넥션·캐시를 데우는 구간.
+    // phase 태그를 붙여, 이 구간의 느린 응답이 지표와 threshold 에 섞이지 않도록 분리한다.
+    warmup: {
+      executor: 'constant-vus',
+      vus: 5,
+      duration: '30s',
+      tags: { phase: 'warmup' },
+    },
+    // 실제 측정 구간. 워밍업이 끝나는 30초 지점부터 시작하며,
+    // startVUs 를 워밍업 VU 수에 맞춰 0 으로 떨어뜨렸다 다시 올리지 않는다.
+    main: {
+      executor: 'ramping-vus',
+      startTime: '30s',
+      startVUs: 5,
+      stages: [
+        { target: __ENV.TARGET, duration: __ENV.RAMP_UP_DURATION },   // 램프업 시간
+        { target: __ENV.TARGET, duration: __ENV.HOLD_DURATION },      // 유지 시간
+        { target: 0, duration: '30s' },                               // graceful 종료: 진행 중인 요청을 마치고 내려간다
+      ],
+      tags: { phase: 'main' },
+    },
+  },
   // SLO 목표: 티켓팅 과정에서 발생하는 전체 API P95 200ms
+  // {phase:main} 으로 한정해 워밍업 구간의 표본을 판정에서 제외한다.
   thresholds: {
-    enter_duration: ['p(95)<200'],             // POST /queue/enter
-    status_duration: ['p(95)<200'],            // GET /queue/status
-    concert_duration: ['p(95)<200'],           // GET /concerts/{id}
-    concert_schedule_duration: ['p(95)<200'],  // GET /concerts/{id}/concert-schedules/{id}
-    remaining_seats_duration: ['p(95)<200'],   // GET /concert-schedules/{id}/schedule-seats/remaining
-    seats_duration: ['p(95)<200'],             // GET /concert-schedules/{id}/schedule-seats
-    occupy_duration: ['p(95)<200'],            // POST /concert-schedules/{id}/schedule-seats/occupy
-    my_occupy_duration: ['p(95)<200'],         // GET /users/occupy
+    'enter_duration{phase:main}': ['p(95)<200'],             // POST /queue/enter
+    'status_duration{phase:main}': ['p(95)<200'],            // GET /queue/status
+    'concert_duration{phase:main}': ['p(95)<200'],           // GET /concerts/{id}
+    'concert_schedule_duration{phase:main}': ['p(95)<200'],  // GET /concerts/{id}/concert-schedules/{id}
+    'remaining_seats_duration{phase:main}': ['p(95)<200'],   // GET /concert-schedules/{id}/schedule-seats/remaining
+    'seats_duration{phase:main}': ['p(95)<200'],             // GET /concert-schedules/{id}/schedule-seats
+    'occupy_duration{phase:main}': ['p(95)<200'],            // POST /concert-schedules/{id}/schedule-seats/occupy
+    'my_occupy_duration{phase:main}': ['p(95)<200'],         // GET /users/occupy
   },
   systemTags: ['proto', 'subproto', 'status', 'method', 'name', 'group', 'check', 'error', 'error_code', 'tls_version', 'scenario', 'service', 'expected_response'],
 };
