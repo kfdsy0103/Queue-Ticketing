@@ -20,6 +20,24 @@ Grafana 대시보드에서 쓰는 PromQL 및 LogQL 쿼리 모음.
 | 노드 메모리 사용률 (%) | Gauge | `percent` | Time series | `instance` | `node_memory_usage_percent` | `(1 - (node_memory_MemAvailable_bytes{instance="$node"} / node_memory_MemTotal_bytes{instance="$node"})) * 100` |
 | GC 1회 평균 정지 시간 | Counter | `s` | Time series | `instance`, `application`, `namespace`, `action`, `cause` | `jvm_gc_pause_seconds_avg` | `sum by(action, cause) (rate(jvm_gc_pause_seconds_sum{instance="$instance", application="$application", namespace="$Namespace"}[$__rate_interval])) / sum by(action, cause) (rate(jvm_gc_pause_seconds_count{instance="$instance", application="$application", namespace="$Namespace"}[$__rate_interval]))` |
 | GC 초당 발생 횟수 | Counter | `cps` | Time series | `instance`, `application`, `action`, `cause` | `jvm_gc_pause_count_rate` | `sum by(action, cause) (rate(jvm_gc_pause_seconds_count{instance="$instance", application="$application"}[$__rate_interval]))` |
+| JIT 누적 컴파일 시간 | Counter | `ms` | Time series | `instance`, `application`, `compiler` | `jvm_jit_compilation_time_total` | `jvm_compilation_time_ms_total{instance="$instance", application="$application"}` |
+| 초당 JIT 컴파일 시간 | Counter | `short` | Time series | `instance`, `application` | `jvm_jit_compilation_rate` | `rate(jvm_compilation_time_ms_total{instance="$instance", application="$application"}[$__rate_interval])` |
+| 로드된 클래스 수 | Gauge | `short` | Time series | `instance`, `application` | `jvm_classes_loaded` | `jvm_classes_loaded_classes{instance="$instance", application="$application"}` |
+
+### 1-1. 워밍업이 끝났는지 판단하기
+
+`jvm_compilation_time_ms_total` 은 JIT 컴파일러가 코드를 기계어로 번역하는 데 쓴 누적 시간이다. `JvmCompilationMetrics` 가 기본 등록되므로 별도 설정 없이 수집된다.
+
+**누적값 그래프가 평평해지고 `초당 JIT 컴파일 시간` 이 0 근처로 떨어지면 워밍업이 끝난 것이다.** `로드된 클래스 수` 도 같이 보면 확실하다. 이 둘이 계속 오르는 구간에서 잰 응답시간은 정상 성능이 아니므로 지표에서 분리해야 한다.
+
+`초당 JIT 컴파일 시간` 은 ms/s 라 단위 없는 비율에 가깝다. 값이 1이면 컴파일러 스레드가 초당 1초어치 CPU를 쓰고 있다는 뜻이라, 이 구간에 CPU 사용률이 함께 치솟는 것이 정상이다.
+
+메트릭 이름이 다르게 보이면 실제 노출값을 확인한다.
+
+```bash
+curl -s localhost:8080/actuator/prometheus | grep compilation
+```
+
 
 ---
 
@@ -171,6 +189,18 @@ allow_structured_metadata: false  # 구조화된 메타데이터 비허용
 | 가상 스레드 pinning 초당 발생 횟수 | Counter | `cps` | Time series | `application` | `jvm_virtual_thread_pinned_rate` | `rate(jvm_threads_virtual_pinned_seconds_count{application="queue"}[3m])` |
 
 평상시 0 이 정상이고 0 이 아닌 구간이 생기는지만 보면 되므로, Time series 에 Thresholds 를 `0` 초과로 걸어두어도 좋다.
+
+---
+
+## 8. 톰캣 스레드 (티켓팅 서버)
+
+`server.tomcat.mbeanregistry.enabled: true` 가 켜져 있어야 수집된다.
+
+| 의미 | 타입 | 단위 | 추천 패널 | 라벨 | 네이밍 | 쿼리 |
+|---|---|---|---|---|---|---|
+| 처리 중인 스레드 수 | Gauge | `short` | Time series | `instance`, `application` | `tomcat_threads_busy` | `tomcat_threads_busy_threads{application="$application", instance="$instance"}` |
+| 생성된 스레드 수 | Gauge | `short` | Time series | `instance`, `application` | `tomcat_threads_current` | `tomcat_threads_current_threads{application="$application", instance="$instance"}` |
+| 설정된 최대 스레드 | Gauge | `short` | Stat | `instance`, `application` | `tomcat_threads_max` | `tomcat_threads_config_max_threads{application="$application", instance="$instance"}` |
 
 ---
 
