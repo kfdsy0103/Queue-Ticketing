@@ -2,8 +2,6 @@ server:
   tomcat:
     mbeanregistry:
       enabled: true  # Tomcat Threads metric 활성화
-    threads:
-      max: 200
   compression:
     enabled: true
     mime-types: text/html,text/plain,text/css,application/javascript,application/json
@@ -20,7 +18,7 @@ spring:
     expiration: 1800000
   threads:
     virtual:
-      enabled: true
+      enabled: true   # virtual
 
 # Prometheus
 management:
