@@ -35,12 +35,16 @@ unzip -q -o /tmp/awscliv2.zip -d /tmp
 /tmp/aws/install --update
 rm -rf /tmp/aws /tmp/awscliv2.zip
 
-# 실행 경로 설정
-mkdir -p "$DEPLOY_DIR/alloy" "$DEPLOY_DIR/logs"
+# 실행 경로 설정 (dump는 OOM 발생 시 힙덤프가 떨어질 위치)
+mkdir -p "$DEPLOY_DIR/alloy" "$DEPLOY_DIR/logs" "$DEPLOY_DIR/dump"
 cd "$DEPLOY_DIR"
 
 # docker-compose
 cat > docker-compose.yml <<'COMPOSE_EOF'
+# 메모리 설정 근거는 ticketingServer/docker-compose.yml 상단 주석 참고.
+# 요약: mem_limit 이 없으면 OOM killer 가 호스트 전체에서 희생자를 고르므로
+# 관측 스택(alloy)이 먼저 죽을 수 있다. -Xmx 는 힙만 막으므로 메타스페이스·
+# 다이렉트·스택도 각각 상한을 걸어야 컨테이너 한도 안에 들어온다.
 services:
   app:
     image: ${DOCKER_REPOSITORY_TICKETING}:${IMAGE_TAG_TICKETING}
@@ -49,8 +53,24 @@ services:
       - .env
     ports:
       - "8080:8080"
+    mem_limit: 1000m
+    memswap_limit: 1000m      # mem_limit 과 같게 두어 스왑 봉쇄
+    environment:
+      TZ: Asia/Seoul
+      MALLOC_ARENA_MAX: "2"   # glibc arena 증식으로 RSS 부푸는 것 방지
+      # 힙 320 + 메타 160 + 코드캐시 64 + 다이렉트 64 + 스택 125 + JVM 내부 110 ≈ 843m
+      JAVA_TOOL_OPTIONS: >-
+        -Xms320m
+        -Xmx320m
+        -XX:MaxMetaspaceSize=160m
+        -XX:ReservedCodeCacheSize=64m
+        -XX:MaxDirectMemorySize=64m
+        -Xss512k
+        -XX:+HeapDumpOnOutOfMemoryError
+        -XX:HeapDumpPath=/dump
     volumes:
       - ./logs:/app/logs  # EC2에 로그 파일 마운트 (alloy도 동일한 바인드 마운트해야함에 유의)
+      - ./dump:/dump      # 힙덤프 보존 (ASG 종료 시 사라지므로 필요하면 먼저 회수)
     restart: unless-stopped
 
   alloy:
@@ -63,6 +83,8 @@ services:
     volumes:
       - ./alloy/config.alloy:/etc/alloy/config.alloy:ro   # alloy config 마운트
       - ./logs:/var/log/spring:ro   # spring에서 logback이 남기는 파일 로그를 읽기 위함 (app도 ./logs로 바인드 마운트했음에 유의)
+    mem_limit: 192m
+    memswap_limit: 192m
     restart: unless-stopped
 
   node-exporter:
@@ -73,6 +95,8 @@ services:
     restart: unless-stopped
     pid: host # 컨테이너 내부가 아닌, 호스트 레벨의 프로세스를 보도록
     network_mode: host # 네트워크도 호스트 레벨의 네트워크를 따르도록
+    mem_limit: 64m
+    memswap_limit: 64m
     volumes:
       - /proc:/host/proc:ro
       - /sys:/host/sys:ro
