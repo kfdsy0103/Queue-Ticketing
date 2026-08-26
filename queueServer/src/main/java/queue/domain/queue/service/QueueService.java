@@ -7,6 +7,7 @@ import java.util.UUID;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import io.jsonwebtoken.Claims;
 import lombok.extern.slf4j.Slf4j;
 import queue.domain.queue.constants.QueueRedisKeys;
 import queue.domain.queue.dto.EnterDTO;
@@ -109,9 +110,11 @@ public class QueueService {
 	 */
 	public StatusDTO.Result status(StatusDTO.Command command) {
 
-		Long concertScheduleId = jwtTokenUtil.getClaim(command.getToken(), "concertScheduleId", Long.class);
-		Long userId = jwtTokenUtil.getClaim(command.getToken(), "userId", Long.class);
-		String queueSessionId = jwtTokenUtil.getClaim(command.getToken(), "queueSessionId", String.class);
+		// 폴링마다 호출되므로 서명 검증을 한 번만 하고 claim 세 개를 꺼낸다
+		Claims claims = jwtTokenUtil.parseClaims(command.getToken());
+		Long concertScheduleId = claims.get("concertScheduleId", Long.class);
+		Long userId = claims.get("userId", Long.class);
+		String queueSessionId = claims.get("queueSessionId", String.class);
 
 		// 토큰에 기록된 userId와 인증 객체에 담긴 userId 일치 검사
 		if (!command.getUserId().equals(userId)) {
