@@ -7,6 +7,7 @@ import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -26,6 +27,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.ZSetOperations;
 
+import io.jsonwebtoken.Claims;
 import queue.domain.queue.constants.QueueRedisKeys;
 import queue.domain.queue.dto.EnterDTO;
 import queue.domain.queue.dto.StatusDTO;
@@ -79,9 +81,12 @@ class QueueServiceTest {
 	}
 
 	private void givenTokenClaims(Long tokenUserId, String tokenSessionId) {
-		given(jwtTokenUtil.getClaim(QueueFixture.TOKEN, "concertScheduleId", Long.class)).willReturn(SCHEDULE_ID);
-		given(jwtTokenUtil.getClaim(QueueFixture.TOKEN, "userId", Long.class)).willReturn(tokenUserId);
-		given(jwtTokenUtil.getClaim(QueueFixture.TOKEN, "queueSessionId", String.class)).willReturn(tokenSessionId);
+		Claims claims = mock(Claims.class);
+		given(claims.get("concertScheduleId", Long.class)).willReturn(SCHEDULE_ID);
+		given(claims.get("userId", Long.class)).willReturn(tokenUserId);
+		given(claims.get("queueSessionId", String.class)).willReturn(tokenSessionId);
+
+		given(jwtTokenUtil.parseClaims(QueueFixture.TOKEN)).willReturn(claims);
 	}
 
 	@Nested
