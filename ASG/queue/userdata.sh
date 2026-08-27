@@ -49,11 +49,18 @@ services:
       - .env
     ports:
       - "8080:8080"
+    mem_limit: 1200m
+    memswap_limit: 1200m
     environment:
       TZ: Asia/Seoul
       JAVA_TOOL_OPTIONS: >-
-        -Xms1024m
-        -Xmx1024m
+        -Xms704m
+        -Xmx704m
+        -XX:MaxMetaspaceSize=128m
+        -XX:ReservedCodeCacheSize=128m
+        -XX:MaxDirectMemorySize=64m
+        -XX:+UseG1GC
+        -XX:CompileThresholdScaling=0.1
         -XX:+HeapDumpOnOutOfMemoryError
         -XX:HeapDumpPath=/dump
     volumes:
@@ -66,6 +73,8 @@ services:
     container_name: alloy
     environment:
       - ALLOY_ENV=prod  # alloy config 에서 운영 환경을 라벨로 구분하기 위함
+    mem_limit: 200m
+    memswap_limit: 200m
     ports:
       - "12345:12345"
     volumes:
@@ -79,6 +88,8 @@ services:
     image: prom/node-exporter:latest
     container_name: node-exporter
     restart: unless-stopped
+    mem_limit: 64m
+    memswap_limit: 64m
     pid: host           # 컨테이너가 아닌 호스트 레벨 프로세스를 보도록
     network_mode: host
     volumes:
