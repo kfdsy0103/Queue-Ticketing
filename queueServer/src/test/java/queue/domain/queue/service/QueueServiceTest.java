@@ -147,6 +147,8 @@ class QueueServiceTest {
 			given(redisUtil.hasKey(ACTIVE_KEY)).willReturn(false);
 			given(redisUtil.zRank(WAITING_KEY, USER_ID)).willReturn(null, 6L);
 			given(redisUtil.increment(COUNTER_KEY)).willReturn(7L);
+			given(redisUtil.zAddIfAbsent(WAITING_KEY, USER_ID, 7.0)).willReturn(true);
+			given(redisUtil.setIfAbsent(eq(USER_INFO_KEY), anyString(), eq(SESSION_TTL))).willReturn(true);
 
 			// when
 			EnterDTO.Result result = queueService.enter(
@@ -154,7 +156,7 @@ class QueueServiceTest {
 
 			// then
 			verify(redisUtil).zAddIfAbsent(WAITING_KEY, USER_ID, 7.0);
-			verify(redisUtil).set(eq(USER_INFO_KEY), sessionIdCaptor.capture(), eq(SESSION_TTL));
+			verify(redisUtil).setIfAbsent(eq(USER_INFO_KEY), sessionIdCaptor.capture(), eq(SESSION_TTL));
 			verify(jwtTokenUtil).generateToken(claimsCaptor.capture());
 
 			assertThat(claimsCaptor.getValue())
@@ -162,6 +164,45 @@ class QueueServiceTest {
 				.containsEntry("concertScheduleId", SCHEDULE_ID)
 				.containsEntry("queueSessionId", sessionIdCaptor.getValue());
 			assertThat(result.getRank()).isEqualTo(7L);
+		}
+
+		@Test
+		void JOIN인데_동시_요청이_먼저_줄서면_ALREADY_JOINED_예외가_발생한다() {
+			// given
+			given(redisUtil.hasKey(ACTIVE_KEY)).willReturn(false);
+			given(redisUtil.zRank(WAITING_KEY, USER_ID)).willReturn(null);
+			given(redisUtil.increment(COUNTER_KEY)).willReturn(7L);
+			given(redisUtil.zAddIfAbsent(WAITING_KEY, USER_ID, 7.0)).willReturn(false);
+
+			// when
+			Throwable thrown = catchThrowable(
+				() -> queueService.enter(QueueFixture.enterCommand(USER_ID, SCHEDULE_ID, EnterType.JOIN)));
+
+			// then
+			assertThat(thrown).isInstanceOf(GeneralException.class);
+			assertThat(((GeneralException)thrown).getCode()).isEqualTo(QueueErrorCode.ALREADY_JOINED);
+			verify(redisUtil, never()).setIfAbsent(anyString(), anyString(), any(Duration.class));
+			verify(jwtTokenUtil, never()).generateToken(any());
+		}
+
+		@Test
+		void JOIN인데_동시_요청이_먼저_화면을_점유하면_ALREADY_JOINED_예외가_발생한다() {
+			// given
+			given(redisUtil.hasKey(ACTIVE_KEY)).willReturn(false);
+			given(redisUtil.zRank(WAITING_KEY, USER_ID)).willReturn(null);
+			given(redisUtil.increment(COUNTER_KEY)).willReturn(7L);
+			given(redisUtil.zAddIfAbsent(WAITING_KEY, USER_ID, 7.0)).willReturn(true);
+			given(redisUtil.setIfAbsent(eq(USER_INFO_KEY), anyString(), eq(SESSION_TTL))).willReturn(false);
+
+			// when
+			Throwable thrown = catchThrowable(
+				() -> queueService.enter(QueueFixture.enterCommand(USER_ID, SCHEDULE_ID, EnterType.JOIN)));
+
+			// then
+			assertThat(thrown).isInstanceOf(GeneralException.class);
+			assertThat(((GeneralException)thrown).getCode()).isEqualTo(QueueErrorCode.ALREADY_JOINED);
+			verify(redisUtil, never()).set(anyString(), anyString(), any(Duration.class));
+			verify(jwtTokenUtil, never()).generateToken(any());
 		}
 	}
 
