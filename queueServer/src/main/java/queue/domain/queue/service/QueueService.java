@@ -85,8 +85,17 @@ public class QueueService {
 		String queueSessionId = UUID.randomUUID().toString();
 
 		long score = redisUtil.increment(counterKey);
-		redisUtil.zAddIfAbsent(waitingKey, userId, score);
-		redisUtil.set(userInfoKey, queueSessionId, SESSION_TTL);	// 소유 중인 화면 (값 + TTL 설정)
+		boolean addedToQueue = Boolean.TRUE.equals(redisUtil.zAddIfAbsent(waitingKey, userId, score));
+
+		// 1번의 사전 검사를 동시에 통과한 요청이 있어도 여기서 한 건만 화면을 점유한다.
+		// 진 요청이 userInfoKey를 덮어쓰면 이긴 요청의 토큰이 곧바로 SESSION_REVOKED가 된다.
+		if (command.getEnterType() == EnterType.JOIN) {
+			if (!addedToQueue || !redisUtil.setIfAbsent(userInfoKey, queueSessionId, SESSION_TTL)) {
+				throw new GeneralException(QueueErrorCode.ALREADY_JOINED);
+			}
+		} else {
+			redisUtil.set(userInfoKey, queueSessionId, SESSION_TTL);	// 소유 중인 화면 (값 + TTL 설정)
+		}
 
 		String token = jwtTokenUtil.generateToken(Map.of(
 			"userId", userId,

@@ -58,6 +58,13 @@ public class RedisUtil {
 	}
 
 	/**
+	 * Key가 없을 때만 값을 TTL과 함께 저장합니다. (SET NX EX) 저장 성공 여부를 반환합니다.
+	 */
+	public boolean setIfAbsent(String key, String value, Duration ttl) {
+		return Boolean.TRUE.equals(redisTemplate.opsForValue().setIfAbsent(key, value, ttl));
+	}
+
+	/**
 	 * Key를 삭제합니다. (DEL)
 	 */
 	public void delete(String key) {
